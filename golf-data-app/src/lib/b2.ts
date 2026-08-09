@@ -19,10 +19,10 @@ export const uploadData = async (filename: string, data: any) => {
   
   try {
     const response = await b2.send(command);
-    console.log(Successfully uploaded \ to B2.);
+    console.log(`Successfully uploaded ${filename} to B2.`);
     return response;
   } catch (err) {
-    console.error(Failed to upload \:, err);
+    console.error(`Failed to upload ${filename}:`, err);
     throw err;
   }
 };

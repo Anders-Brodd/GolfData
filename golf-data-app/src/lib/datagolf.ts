@@ -10,16 +10,16 @@ export class DataGolfAPI {
   }
 
   async getProjections(tour = 'pga') {
-    const url = \/preds/get-td?tour=\&file_format=json&key=\;
+    const url = `${this.baseUrl}/preds/get-td?tour=${tour}&file_format=json&key=${this.apiKey}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(DataGolf getProjections failed: \);
+    if (!res.ok) throw new Error(`DataGolf getProjections failed: ${res.statusText}`);
     return res.json();
   }
 
   async getPreTournamentOdds(tour = 'pga') {
-    const url = \/preds/pre-tournament?tour=\&odds_format=decimal&file_format=json&key=\;
+    const url = `${this.baseUrl}/preds/pre-tournament?tour=${tour}&odds_format=decimal&file_format=json&key=${this.apiKey}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(DataGolf getPreTournamentOdds failed: \);
+    if (!res.ok) throw new Error(`DataGolf getPreTournamentOdds failed: ${res.statusText}`);
     return res.json();
   }
 }

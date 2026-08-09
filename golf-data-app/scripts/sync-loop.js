@@ -1,21 +1,18 @@
 const http = require('http');
 
 const syncData = () => {
-  console.log([] Triggering DataGolf Sync...);
+  console.log(`[${new Date().toISOString()}] Triggering DataGolf Sync...`);
   http.get('http://localhost:3000/api/sync', (res) => {
     let data = '';
     res.on('data', chunk => { data += chunk; });
     res.on('end', () => {
-      console.log(Sync Response: );
+      console.log(`Sync Response: ${data}`);
     });
   }).on('error', (err) => {
-    console.error(Sync Error: );
+    console.error(`Sync Error: ${err.message}`);
   });
 };
 
-// Run immediately once
 syncData();
-
-// Run every 60 seconds
 setInterval(syncData, 60000);
 console.log('Sync loop started. Polling every 1 minute...');
