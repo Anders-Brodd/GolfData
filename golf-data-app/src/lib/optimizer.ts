@@ -22,26 +22,22 @@ export class LineupOptimizer {
   static generateTopLineups(players: PlayerData[], count = 50, config: OptimizerConfig = { minSalary: 49000, maxSalary: 50000 }): Lineup[] {
     const lineups: Map<string, Lineup> = new Map();
     
-    // Sort players by value (projection adjusted by weight) / salary
+    // Sort players by adjusted projection descending
     const sortedPlayers = [...players].sort((a, b) => {
-      const aVal = (a.projection * (1 + a.customWeight / 100)) / a.salary;
-      const bVal = (b.projection * (1 + b.customWeight / 100)) / b.salary;
-      return bVal - aVal;
+      const aProj = a.projection * (1 + a.customWeight / 100);
+      const bProj = b.projection * (1 + b.customWeight / 100);
+      return bProj - aProj;
     });
 
     const lineupSize = 6;
     let attempts = 0;
-    const maxAttempts = 10000; // run thousands of randomized greedy combos
+    const maxAttempts = 20000; // run thousands of randomized greedy combos
 
     while (lineups.size < count && attempts < maxAttempts) {
       attempts++;
       
-      // Shuffle the top 40ish players slightly to get unique lineups
-      const poolSize = Math.min(60, sortedPlayers.length);
-      const pool = sortedPlayers.slice(0, poolSize);
-      
-      // Randomize the pool slightly to get different top lineups
-      const randomizedPool = [...pool].sort(() => Math.random() - 0.2); 
+      // Randomize the full pool slightly, biased towards keeping top projected guys at the top
+      const randomizedPool = [...sortedPlayers].sort(() => Math.random() - 0.25); 
       
       const currentLineup: PlayerData[] = [];
       let currentSalary = 0;
