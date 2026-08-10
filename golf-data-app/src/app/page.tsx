@@ -17,6 +17,7 @@ export default function Home() {
   const [lineups, setLineups] = useState<Lineup[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
   
   // Contest Type & Betting Details
   const [contestType, setContestType] = useState('MME');
@@ -39,13 +40,16 @@ export default function Home() {
       try {
         const res = await fetch('/api/players');
         const data = await res.json();
-        if (data.success && data.players) {
+        if (data.success && data.players && data.players.length > 0) {
           setPlayers(data.players);
+          setDataError(null);
         } else {
           console.error('Failed to load players:', data.error);
+          setDataError(data.error || 'No players found. DataGolf sync may have failed.');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Network error loading players:', err);
+        setDataError('Network error connecting to API.');
       }
       setIsDataLoading(false);
     };
@@ -135,15 +139,17 @@ export default function Home() {
               <div key={stat} style={{ marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem' }}>
                   <span>{stat.toUpperCase()}</span>
-                  <span style={{ color: '#22c55e' }}>{weight}%</span>
                 </div>
-                <input 
-                  type="range" 
-                  min="0" max="100" 
-                  value={weight} 
-                  onChange={(e) => handleWeightChange(stat as keyof typeof weights, Number(e.target.value))}
-                  style={{ width: '100%', accentColor: '#22c55e' }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input 
+                    type="number" 
+                    min="0" max="100" 
+                    value={weight} 
+                    onChange={(e) => handleWeightChange(stat as keyof typeof weights, Number(e.target.value))}
+                    style={{ flex: 1, background: '#222', color: '#22c55e', padding: '8px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }}
+                  />
+                  <span style={{ color: '#888' }}>%</span>
+                </div>
               </div>
             ))}
           </div>
@@ -181,6 +187,12 @@ export default function Home() {
           {isDataLoading ? (
              <div style={{ color: '#22c55e', fontSize: '1.2rem', padding: '40px', textAlign: 'center' }}>
                Loading live player data from DataGolf / Backblaze...
+             </div>
+          ) : dataError ? (
+             <div style={{ color: '#ef4444', fontSize: '1.2rem', padding: '40px', textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid #ef4444' }}>
+               {dataError}
+               <br/><br/>
+               <span style={{ fontSize: '1rem', color: '#fff' }}>Please verify the DataGolf API endpoints in your backend sync script.</span>
              </div>
           ) : (
             <>

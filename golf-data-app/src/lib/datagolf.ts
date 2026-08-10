@@ -9,17 +9,17 @@ export class DataGolfAPI {
     }
   }
 
-  async getProjections(tour = 'pga') {
-    const url = `${this.baseUrl}/preds/get-td?tour=${tour}&file_format=json&key=${this.apiKey}`;
+  async getFantasyProjections(tour = 'pga', site = 'draftkings', slate = 'main') {
+    const url = `${this.baseUrl}/preds/fantasy-projection-defaults?tour=${tour}&site=${site}&slate=${slate}&file_format=json&key=${this.apiKey}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`DataGolf getProjections failed: ${res.statusText}`);
+    if (!res.ok) throw new Error(`DataGolf getFantasyProjections failed: ${res.statusText}`);
     return res.json();
   }
 
-  async getPreTournamentOdds(tour = 'pga') {
-    const url = `${this.baseUrl}/preds/pre-tournament?tour=${tour}&odds_format=decimal&file_format=json&key=${this.apiKey}`;
+  async getPlayerSkill(display = 'value') {
+    const url = `${this.baseUrl}/preds/skill-ratings?display=${display}&file_format=json&key=${this.apiKey}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`DataGolf getPreTournamentOdds failed: ${res.statusText}`);
+    if (!res.ok) throw new Error(`DataGolf getPlayerSkill failed: ${res.statusText}`);
     return res.json();
   }
 }
