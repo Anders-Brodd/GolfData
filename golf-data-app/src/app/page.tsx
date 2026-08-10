@@ -171,10 +171,18 @@ export default function Home() {
     return score;
   };
 
-  const getValueScore = (p: GolferStats) => {
+  const getRawValue = (p: GolferStats) => {
     const score = getModelScore(p);
-    if (score === 0) return 0;
-    return p.salary / score;
+    if (!p.salary) return 0;
+    return score / p.salary;
+  };
+
+  const maxRawValue = players.length > 0 ? Math.max(...players.map(p => getRawValue(p))) : 1;
+
+  const getValueScore = (p: GolferStats) => {
+    const raw = getRawValue(p);
+    if (maxRawValue === 0) return 0;
+    return (raw / maxRawValue) * 100;
   };
 
   const generateLineups = () => {
@@ -435,7 +443,7 @@ export default function Home() {
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>{p.name}</td>
                           <td style={{ padding: '8px' }}>${p.salary}</td>
                           <td style={{ padding: '8px', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem' }}>{modelScore.toFixed(2)}</td>
-                          <td style={{ padding: '8px', color: '#3b82f6', fontWeight: 'bold', fontSize: '0.9rem' }}>{valueScore === 0 ? '-' : `$${valueScore.toFixed(0)}/pt`}</td>
+                          <td style={{ padding: '8px', color: '#3b82f6', fontWeight: 'bold', fontSize: '0.9rem' }}>{valueScore === 0 ? '-' : valueScore.toFixed(1)}</td>
                           <td style={{ padding: '8px' }}>{stats.sgOTT.toFixed(2)}</td>
                           <td style={{ padding: '8px' }}>{stats.sgAPP.toFixed(2)}</td>
                           <td style={{ padding: '8px' }}>{stats.sgARG.toFixed(2)}</td>
