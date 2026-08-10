@@ -6,7 +6,6 @@ export async function GET() {
   try {
     const dg = new DataGolfAPI();
     
-    // We fetch years individually and upload them individually to avoid massive memory blowouts
     const years = ['2024', '2025', '2026'];
     const results = [];
 
@@ -14,8 +13,16 @@ export async function GET() {
       console.log(`Fetching DataGolf raw rounds for ${year}...`);
       const data = await dg.getHistoricalRawRounds(year);
       
-      // Ensure we have an array of rounds
-      const rounds = Array.isArray(data) ? data : (data.data || []);
+      let rounds = [];
+      if (Array.isArray(data)) {
+        rounds = data;
+      } else if (data.data && Array.isArray(data.data)) {
+        rounds = data.data;
+      } else {
+        // DataGolf returns a dictionary keyed by event_id for historical-raw-data
+        const allEvents = Object.values(data);
+        rounds = allEvents.flat();
+      }
       
       console.log(`Uploading ${rounds.length} rounds for ${year} to B2...`);
       await uploadData(`raw_rounds_${year}.json`, rounds);
