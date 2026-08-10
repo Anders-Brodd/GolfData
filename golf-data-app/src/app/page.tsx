@@ -2,181 +2,251 @@
 import { useState, useMemo } from 'react';
 import { LineupOptimizer, PlayerData, Lineup } from '@/lib/optimizer';
 
-const MOCK_PLAYERS: PlayerData[] = [
-  { id: '1', name: "Scottie Scheffler", salary: 11500, projection: 95.2, customWeight: 0 },
-  { id: '2', name: "Rory McIlroy", salary: 10800, projection: 89.1, customWeight: 0 },
-  { id: '3', name: "Xander Schauffele", salary: 10200, projection: 88.5, customWeight: 0 },
-  { id: '4', name: "Viktor Hovland", salary: 9800, projection: 82.1, customWeight: 0 },
-  { id: '5', name: "Patrick Cantlay", salary: 9500, projection: 80.3, customWeight: 0 },
-  { id: '6', name: "Max Homa", salary: 9200, projection: 78.4, customWeight: 0 },
-  { id: '7', name: "Collin Morikawa", salary: 9000, projection: 76.2, customWeight: 0 },
-  { id: '8', name: "Matt Fitzpatrick", salary: 8800, projection: 74.5, customWeight: 0 },
-  { id: '9', name: "Wyndham Clark", salary: 8600, projection: 73.1, customWeight: 0 },
-  { id: '10', name: "Brian Harman", salary: 8400, projection: 71.9, customWeight: 0 },
-  { id: '11', name: "Tommy Fleetwood", salary: 8200, projection: 70.2, customWeight: 0 },
-  { id: '12', name: "Cameron Young", salary: 8000, projection: 68.5, customWeight: 0 },
-  { id: '13', name: "Keegan Bradley", salary: 7800, projection: 66.8, customWeight: 0 },
-  { id: '14', name: "Rickie Fowler", salary: 7600, projection: 65.1, customWeight: 0 },
-  { id: '15', name: "Jason Day", salary: 7400, projection: 63.4, customWeight: 0 },
+// Define the comprehensive stat profile for each golfer
+interface GolferStats extends PlayerData {
+  sgOTT: number;
+  sgAPP: number;
+  sgARG: number;
+  sgPUTT: number;
+  sgTTG: number;
+  distance: number;
+  accuracy: number;
+  bermuda: number;
+  wind: number;
+}
+
+// Mock Data representing DataGolf stats
+const MOCK_PLAYERS: GolferStats[] = [
+  { id: '1', name: "Scottie Scheffler", salary: 11500, projection: 95.2, customWeight: 0, sgOTT: 1.2, sgAPP: 1.5, sgARG: 0.4, sgPUTT: 0.1, sgTTG: 3.1, distance: 8, accuracy: 7, bermuda: 5, wind: 6 },
+  { id: '2', name: "Rory McIlroy", salary: 10800, projection: 89.1, customWeight: 0, sgOTT: 1.4, sgAPP: 0.8, sgARG: 0.2, sgPUTT: 0.3, sgTTG: 2.4, distance: 10, accuracy: 5, bermuda: 6, wind: 7 },
+  { id: '3', name: "Xander Schauffele", salary: 10200, projection: 88.5, customWeight: 0, sgOTT: 0.8, sgAPP: 1.1, sgARG: 0.5, sgPUTT: 0.6, sgTTG: 2.4, distance: 6, accuracy: 8, bermuda: 7, wind: 8 },
+  { id: '4', name: "Viktor Hovland", salary: 9800, projection: 82.1, customWeight: 0, sgOTT: 0.9, sgAPP: 1.2, sgARG: -0.2, sgPUTT: 0.5, sgTTG: 1.9, distance: 7, accuracy: 7, bermuda: 4, wind: 5 },
+  { id: '5', name: "Patrick Cantlay", salary: 9500, projection: 80.3, customWeight: 0, sgOTT: 0.7, sgAPP: 0.9, sgARG: 0.6, sgPUTT: 0.7, sgTTG: 2.2, distance: 6, accuracy: 7, bermuda: 8, wind: 6 },
+  { id: '6', name: "Max Homa", salary: 9200, projection: 78.4, customWeight: 0, sgOTT: 0.5, sgAPP: 0.8, sgARG: 0.4, sgPUTT: 0.8, sgTTG: 1.7, distance: 6, accuracy: 6, bermuda: 7, wind: 7 },
 ];
 
 export default function Home() {
   const [tournament, setTournament] = useState('Masters Tournament');
-  const [players, setPlayers] = useState<PlayerData[]>(MOCK_PLAYERS);
+  const [players, setPlayers] = useState<GolferStats[]>(MOCK_PLAYERS);
   const [lineups, setLineups] = useState<Lineup[]>([]);
+  
+  // Contest Type & Betting Details
+  const [contestType, setContestType] = useState('MME');
   const [betEntry, setBetEntry] = useState(20);
   const [prizePool, setPrizePool] = useState(100000);
+  
+  // Global Stat Weights (percentage 0-100)
+  const [weights, setWeights] = useState({
+    sgOTT: 15,
+    sgAPP: 30,
+    sgARG: 10,
+    sgPUTT: 15,
+    sgTTG: 0,
+    distance: 10,
+    accuracy: 10,
+    bermuda: 5,
+    wind: 5
+  });
 
-  const handleWeightChange = (id: string, weight: number) => {
-    setPlayers(players.map(p => p.id === id ? { ...p, customWeight: weight } : p));
+  const handleWeightChange = (stat: keyof typeof weights, value: number) => {
+    setWeights(prev => ({ ...prev, [stat]: value }));
   };
 
+  // AI Course Fit Engine
   const aiAutoWeight = async () => {
-    // In a real app, this calls /api/openai to get course fits and sets weights
     alert('GPT is analyzing the course... (Simulated)');
-    const weightedPlayers = players.map(p => ({
-      ...p,
-      customWeight: Math.floor(Math.random() * 20) - 5 // Random weights -5% to +15%
-    }));
-    setPlayers(weightedPlayers);
+    // In production, this hits OpenAI with course details and returns optimal weights
+    setWeights({
+      sgOTT: 25,
+      sgAPP: 35,
+      sgARG: 5,
+      sgPUTT: 10,
+      sgTTG: 0,
+      distance: 20,
+      accuracy: 0,
+      bermuda: 5,
+      wind: 0
+    });
+  };
+
+  // Calculate dynamic Model Score for a player based on their stats * global weights
+  const getModelScore = (p: GolferStats) => {
+    // Normalizing the stats for score combination (arbitrary mock formula)
+    let score = p.projection; // Base projection
+    score += (p.sgOTT * (weights.sgOTT / 10));
+    score += (p.sgAPP * (weights.sgAPP / 10));
+    score += (p.sgARG * (weights.sgARG / 10));
+    score += (p.sgPUTT * (weights.sgPUTT / 10));
+    score += (p.distance * (weights.distance / 100));
+    score += (p.bermuda * (weights.bermuda / 100));
+    return score;
   };
 
   const generateLineups = () => {
-    const optimized = LineupOptimizer.generateTopLineups(players, 50);
+    // Pass the calculated Model Score as the projection to the optimizer
+    const mappedPlayers = players.map(p => ({
+      ...p,
+      projection: getModelScore(p), // OVERRIDE PROJECTION WITH MODEL SCORE
+      customWeight: 0
+    }));
+    
+    // Support Single Entry vs MME
+    const lineupCount = contestType === 'Single Entry' ? 1 : 50;
+    const optimized = LineupOptimizer.generateTopLineups(mappedPlayers, lineupCount);
     setLineups(optimized);
   };
 
-  const expectedProfit = useMemo(() => {
-    if (lineups.length === 0) return 0;
-    // Basic mock calculation: Total Entry Cost vs Expected Win based on projections
-    const totalCost = lineups.length * betEntry;
-    const avgProj = lineups.reduce((sum, l) => sum + l.totalProjection, 0) / lineups.length;
-    // Arbitrary formula: if avg projection is over 450, you might cash
-    const winProbability = Math.max(0, (avgProj - 400) / 100); 
-    const expectedReturn = winProbability * prizePool * 0.05; // 5% of prize pool average win
-    return expectedReturn - totalCost;
-  }, [lineups, betEntry, prizePool]);
-
   return (
-    <main style={{ padding: '20px', maxWidth: '1600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <main style={{ padding: '0', height: '100vh', display: 'flex', flexDirection: 'column', background: '#0a0a0a', color: '#fff', fontFamily: 'sans-serif' }}>
       
-      {/* Header & Controls */}
-      <header className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 800 }}>SKRODERUP <span style={{ color: 'var(--primary)' }}>Data Model</span></h1>
-        </div>
+      {/* Top Navigation Bar */}
+      <header style={{ padding: '16px 24px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>SKRODERUP <span style={{ color: '#22c55e' }}>Custom Model</span></h1>
+        
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <select className="input-glass" value={tournament} onChange={e => setTournament(e.target.value)}>
-            <option value="Masters Tournament">The Masters Tournament</option>
-            <option value="PGA Championship">PGA Championship</option>
-            <option value="US Open">US Open</option>
+          <select style={{ background: '#222', color: '#fff', padding: '8px 16px', border: '1px solid #444', borderRadius: '4px' }} value={tournament} onChange={e => setTournament(e.target.value)}>
+            <option>Masters Tournament</option>
+            <option>PGA Championship</option>
+            <option>US Open</option>
           </select>
-          <button className="btn-primary" onClick={aiAutoWeight} style={{ background: '#3b82f6', color: '#fff' }}>
-            ?? AI Course Fit Adjust
+          <button onClick={aiAutoWeight} style={{ background: '#3b82f6', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+            ?? GPT Course Adjust
           </button>
         </div>
       </header>
 
-      {/* Main Content Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '20px', alignItems: 'start' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
-        {/* Left: Player Data Table */}
-        <section className="glass-panel" style={{ overflowX: 'auto' }}>
-          <h2 style={{ marginBottom: '16px' }}>Player Pool: {tournament}</h2>
-          <table className="premium-table">
+        {/* Left Sidebar: Stat Weights (RickRunGood Style) */}
+        <aside style={{ width: '320px', background: '#111', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+            <h3 style={{ marginBottom: '20px', fontSize: '0.9rem', textTransform: 'uppercase', color: '#888' }}>Model Weights (%)</h3>
+            
+            {/* Stat Input Group */}
+            {Object.entries(weights).map(([stat, weight]) => (
+              <div key={stat} style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem' }}>
+                  <span>{stat.toUpperCase()}</span>
+                  <span style={{ color: '#22c55e' }}>{weight}%</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="0" max="100" 
+                  value={weight} 
+                  onChange={(e) => handleWeightChange(stat as keyof typeof weights, Number(e.target.value))}
+                  style={{ width: '100%', accentColor: '#22c55e' }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ padding: '20px', background: '#000', borderTop: '1px solid #333' }}>
+            
+            {/* Betting Details & Contest Type */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Contest Type</label>
+              <select style={{ width: '100%', background: '#222', color: '#fff', padding: '8px', border: '1px solid #444', borderRadius: '4px' }} value={contestType} onChange={e => setContestType(e.target.value)}>
+                <option value="MME">MME (50 Max)</option>
+                <option value="Single Entry">Single Entry</option>
+              </select>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Entry Fee ($)</label>
+                <input type="number" value={betEntry} onChange={e => setBetEntry(Number(e.target.value))} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Prize Pool ($)</label>
+                <input type="number" value={prizePool} onChange={e => setPrizePool(Number(e.target.value))} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+              </div>
+            </div>
+
+            <button onClick={generateLineups} style={{ width: '100%', background: '#22c55e', color: '#000', padding: '16px', border: 'none', borderRadius: '4px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer' }}>
+              {contestType === 'Single Entry' ? 'BUILD OPTIMAL LINEUP' : 'BUILD 50 LINEUPS'}
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Content: Massive Data Grid */}
+        <section style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+          
+          {lineups.length > 0 && (
+            <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ color: '#22c55e', margin: 0 }}>? {lineups.length} Lineup{lineups.length !== 1 && 's'} Generated Successfully</h3>
+                
+                {/* Expected Profit / Bet Details Summary */}
+                <div style={{ display: 'flex', gap: '24px', background: '#000', padding: '8px 16px', borderRadius: '4px', border: '1px solid #333' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#888' }}>Total Risk</span>
+                    <strong style={{ fontSize: '0.9rem' }}>${(lineups.length * betEntry).toLocaleString()}</strong>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#888' }}>Exp. ROI</span>
+                    <strong style={{ fontSize: '0.9rem', color: '#22c55e' }}>+${Math.max(0, lineups.length * betEntry * 1.2).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px' }}>
+                {lineups.slice(0, 5).map((l, i) => (
+                  <div key={i} style={{ minWidth: '300px', background: '#222', padding: '12px', borderRadius: '8px', border: '1px solid #444' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #444', paddingBottom: '8px' }}>
+                      <strong style={{ color: '#fff' }}>Lineup #{i+1}</strong>
+                      <span style={{ color: '#22c55e' }}>{l.totalProjection.toFixed(1)} pts</span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#aaa' }}>
+                      {l.players.map(p => <div key={p.id}>{p.name} (${p.salary})</div>)}
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '0.8rem', textAlign: 'right' }}>Sal: ${l.totalSalary}</div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#888', marginTop: '8px' }}>
+                {contestType === 'Single Entry' ? 'Showing Optimal Single Entry Lineup.' : 'Showing top 5 of 50 MME Lineups. Export feature coming soon.'}
+              </p>
+            </div>
+          )}
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
             <thead>
-              <tr>
-                <th>Golfer</th>
-                <th>DK Salary</th>
-                <th>Base Proj</th>
-                <th>AI/Custom Wgt (%)</th>
-                <th>Adj Proj</th>
+              <tr style={{ background: '#1a1a1a', borderBottom: '2px solid #333' }}>
+                <th style={{ padding: '12px 8px', color: '#888' }}>Golfer</th>
+                <th style={{ padding: '12px 8px', color: '#888' }}>Salary</th>
+                <th style={{ padding: '12px 8px', color: '#22c55e' }}>Model Score</th>
+                <th style={{ padding: '12px 8px', color: '#888' }}>Base Proj</th>
+                <th style={{ padding: '12px 8px', color: '#888' }}>SG:OTT</th>
+                <th style={{ padding: '12px 8px', color: '#888' }}>SG:APP</th>
+                <th style={{ padding: '12px 8px', color: '#888' }}>SG:ARG</th>
+                <th style={{ padding: '12px 8px', color: '#888' }}>SG:PUTT</th>
+                <th style={{ padding: '12px 8px', color: '#888' }}>Dist</th>
+                <th style={{ padding: '12px 8px', color: '#888' }}>Bermuda</th>
               </tr>
             </thead>
             <tbody>
               {players.map(p => {
-                const adjProj = p.projection * (1 + p.customWeight / 100);
+                const modelScore = getModelScore(p);
                 return (
-                  <tr key={p.id}>
-                    <td style={{ fontWeight: 600 }}>{p.name}</td>
-                    <td>${p.salary.toLocaleString()}</td>
-                    <td>{p.projection.toFixed(1)}</td>
-                    <td>
-                      <input 
-                        type="number" 
-                        className="input-glass" 
-                        style={{ width: '80px', padding: '6px' }}
-                        value={p.customWeight}
-                        onChange={(e) => handleWeightChange(p.id, Number(e.target.value))}
-                      />
-                    </td>
-                    <td className="highlight-green">{adjProj.toFixed(1)}</td>
+                  <tr key={p.id} style={{ borderBottom: '1px solid #222' }}>
+                    <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{p.name}</td>
+                    <td style={{ padding: '12px 8px' }}>${p.salary}</td>
+                    <td style={{ padding: '12px 8px', color: '#22c55e', fontWeight: 'bold', fontSize: '1rem' }}>{modelScore.toFixed(2)}</td>
+                    <td style={{ padding: '12px 8px', color: '#aaa' }}>{p.projection}</td>
+                    <td style={{ padding: '12px 8px', color: p.sgOTT > 1 ? '#22c55e' : '#fff' }}>{p.sgOTT}</td>
+                    <td style={{ padding: '12px 8px', color: p.sgAPP > 1 ? '#22c55e' : '#fff' }}>{p.sgAPP}</td>
+                    <td style={{ padding: '12px 8px', color: p.sgARG > 0.5 ? '#22c55e' : p.sgARG < 0 ? '#ef4444' : '#fff' }}>{p.sgARG}</td>
+                    <td style={{ padding: '12px 8px' }}>{p.sgPUTT}</td>
+                    <td style={{ padding: '12px 8px' }}>{p.distance}</td>
+                    <td style={{ padding: '12px 8px' }}>{p.bermuda}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+
         </section>
-
-        {/* Right: Optimizer Controls & Lineups */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {/* Bet Details Calculator */}
-          <section className="glass-panel">
-            <h3 style={{ marginBottom: '16px' }}>Bet & Profit Calculator</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Entry Fee ($)</label>
-                <input type="number" className="input-glass" value={betEntry} onChange={e => setBetEntry(Number(e.target.value))} style={{ width: '100%' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Prize Pool ($)</label>
-                <input type="number" className="input-glass" value={prizePool} onChange={e => setPrizePool(Number(e.target.value))} style={{ width: '100%' }} />
-              </div>
-            </div>
-            
-            <div style={{ padding: '16px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span>Total Entries Cost:</span>
-                <strong>${(lineups.length * betEntry).toLocaleString()}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: expectedProfit >= 0 ? 'var(--primary)' : '#ef4444' }}>
-                <span>Expected Profit (ROI):</span>
-                <strong>${expectedProfit.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
-              </div>
-            </div>
-
-            <button className="btn-primary" onClick={generateLineups} style={{ width: '100%', fontSize: '1.1rem', padding: '16px' }}>
-              Generate Top 50 Lineups
-            </button>
-          </section>
-
-          {/* Lineups List */}
-          {lineups.length > 0 && (
-            <section className="glass-panel" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-              <h3 style={{ marginBottom: '16px' }}>Top {lineups.length} Lineups</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {lineups.map((lineup, i) => (
-                  <div key={lineup.id} style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
-                      <strong>Lineup #{i + 1}</strong>
-                      <div>
-                        <span style={{ marginRight: '12px', color: '#aaa' }}>${lineup.totalSalary.toLocaleString()}</span>
-                        <span className="highlight-green">{lineup.totalProjection.toFixed(1)} pts</span>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '0.9rem', color: '#ddd', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {lineup.players.map(p => (
-                        <span key={p.id} style={{ background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: '4px' }}>{p.name}</span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-        </div>
       </div>
     </main>
   );
