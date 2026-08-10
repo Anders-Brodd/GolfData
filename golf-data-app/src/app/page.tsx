@@ -83,6 +83,7 @@ export default function Home() {
 
   const handleWeightChange = (stat: keyof typeof weights, value: number) => {
     setWeights(prev => ({ ...prev, [stat]: value }));
+    setLineups([]);
   };
 
   const estimateTokenCost = () => {
@@ -92,6 +93,7 @@ export default function Home() {
   };
 
   const aiAutoWeight = async () => {
+    setLineups([]);
     setIsAiLoading(true); setGptReasoning('');
     try {
       const res = await fetch('/api/ai/course-fit', {
@@ -323,7 +325,7 @@ export default function Home() {
           <div style={{ padding: '20px', background: '#000', borderTop: '1px solid #333' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
               <label style={{ fontSize: '0.8rem', color: '#aaa' }}>Lineups to Build</label>
-              <select value={numLineups} onChange={e => setNumLineups(Number(e.target.value))} style={{ background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '2px 6px' }}>
+              <select value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); setLineups([]); }} style={{ background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '2px 6px' }}>
                 <option value="1">1 (Single Entry)</option>
                 <option value="3">3 Max</option>
                 <option value="20">20 Max</option>
@@ -333,10 +335,10 @@ export default function Home() {
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Max Exposure %</label><input type="number" min="5" max="100" value={maxExposure} onChange={e => setMaxExposure(Number(e.target.value))} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Uniques</label><input type="number" min="1" max="5" value={minUniques} onChange={e => setMinUniques(Number(e.target.value))} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label><input type="number" value={minSalary} onChange={e => setMinSalary(Number(e.target.value))} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Max Salary</label><input type="number" value={maxSalary} onChange={e => setMaxSalary(Number(e.target.value))} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Max Exposure %</label><input type="number" min="5" max="100" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); setLineups([]); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Uniques</label><input type="number" min="1" max="5" value={minUniques} onChange={e => { setMinUniques(Number(e.target.value)); setLineups([]); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label><input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); setLineups([]); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Max Salary</label><input type="number" value={maxSalary} onChange={e => { setMaxSalary(Number(e.target.value)); setLineups([]); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
             </div>
             
             <button onClick={generateLineups} disabled={isDataLoading} style={{ width: '100%', background: '#22c55e', color: '#000', padding: '16px', border: 'none', borderRadius: '4px', fontSize: '1rem', fontWeight: 'bold', cursor: isDataLoading ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>
