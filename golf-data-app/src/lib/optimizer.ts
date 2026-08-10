@@ -3,7 +3,8 @@ export interface PlayerData {
   name: string;
   salary: number;
   projection: number;
-  customWeight: number; // 0 to 100 multiplier or added points
+  customWeight: number; // Not used anymore, kept for compat
+  maxExposure?: number; // 0 to 100 percent for this specific player
 }
 
 export interface Lineup {
@@ -23,11 +24,7 @@ export interface OptimizerConfig {
 
 export class LineupOptimizer {
   static generateTopLineups(players: PlayerData[], config: OptimizerConfig): Lineup[] {
-    const sortedPlayers = [...players].sort((a, b) => {
-      const aProj = a.projection * (1 + a.customWeight / 100);
-      const bProj = b.projection * (1 + b.customWeight / 100);
-      return bProj - aProj;
-    });
+    const sortedPlayers = [...players].sort((a, b) => b.projection - a.projection);
 
     const lineupSize = 6;
     const maxBulkAttempts = 50000;
@@ -54,8 +51,7 @@ export class LineupOptimizer {
         if (currentLineup.length < lineupSize && (currentSalary + p.salary) <= config.maxSalary) {
           currentLineup.push(p);
           currentSalary += p.salary;
-          const adjustedProj = p.projection * (1 + p.customWeight / 100);
-          currentProj += adjustedProj;
+          currentProj += p.projection;
         }
         if (currentLineup.length === lineupSize) break;
       }
@@ -80,14 +76,14 @@ export class LineupOptimizer {
     const finalLineups: Lineup[] = [];
     const playerExposureCount: Record<string, number> = {};
     
-    const maxUsageAllowed = Math.max(1, Math.floor(config.numLineups * (config.maxExposure / 100)));
-
     for (const lineup of allValidLineups) {
       if (finalLineups.length >= config.numLineups) break;
 
       // Check max exposure
       let violatesExposure = false;
       for (const player of lineup.players) {
+        const playerMaxExp = player.maxExposure !== undefined ? player.maxExposure : config.maxExposure;
+        const maxUsageAllowed = playerMaxExp === 0 ? 0 : Math.max(1, Math.floor(config.numLineups * (playerMaxExp / 100)));
         if ((playerExposureCount[player.id] || 0) >= maxUsageAllowed) {
           violatesExposure = true;
           break;
