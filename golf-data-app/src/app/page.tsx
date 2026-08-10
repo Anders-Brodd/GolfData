@@ -248,12 +248,14 @@ export default function Home() {
     let aScr = { min: Infinity, max: -Infinity };
     let aVal = { min: Infinity, max: -Infinity };
     let fnl = { min: Infinity, max: -Infinity };
+    let statsRanges: Record<string, { min: number, max: number }> = {};
     
     activeField.forEach(p => {
       const cs = getModelScore(p); const cv = getValueScore(p);
       const ds = p.projection; const dv = getDgValue(p);
       const as = getAvgScore(p); const av = getAvgValue(p);
       const fs = getFinalProj(p);
+      const stats = getActiveStats(p);
       
       if (p.salary < sal.min) sal.min = p.salary; if (p.salary > sal.max) sal.max = p.salary;
       if (cs < cScr.min) cScr.min = cs; if (cs > cScr.max) cScr.max = cs;
@@ -263,21 +265,36 @@ export default function Home() {
       if (as < aScr.min) aScr.min = as; if (as > aScr.max) aScr.max = as;
       if (av < aVal.min) aVal.min = av; if (av > aVal.max) aVal.max = av;
       if (fs < fnl.min) fnl.min = fs; if (fs > fnl.max) fnl.max = fs;
+
+      const allStats: any = {
+         ...stats,
+         sgBS: Number(stats.sgOTT||0) + Number(stats.sgAPP||0),
+         putt_bermuda: p.putt_bermuda,
+         putt_bentgrass: p.putt_bentgrass,
+         putt_poa: p.putt_poa
+      };
+
+      for (let key in allStats) {
+         if (!statsRanges[key]) statsRanges[key] = { min: Infinity, max: -Infinity };
+         const v = Number(allStats[key]) || 0;
+         if (v < statsRanges[key].min) statsRanges[key].min = v;
+         if (v > statsRanges[key].max) statsRanges[key].max = v;
+      }
     });
-    return { sal, cScr, cVal, dScr, dVal, aScr, aVal, fnl };
+    return { sal, cScr, cVal, dScr, dVal, aScr, aVal, fnl, statsRanges };
   }, [players, weights, roundsFilter, optTarget, playerOverrides, normalizationStats]);
 
-  const getGradient = (val: number, min: number, max: number, type: 'salary'|'score') => {
+  const getGradient = (val: number, min: number, max: number, type: 'salary'|'score'|'lowerIsBetter') => {
     if (min === max || !isFinite(min)) return 'transparent';
     let percent = Math.max(0, Math.min(1, (val - min) / (max - min)));
-    if (type === 'salary') percent = 1 - percent; 
+    if (type === 'salary' || type === 'lowerIsBetter') percent = 1 - percent; 
     let r, g;
     if (percent > 0.5) {
        r = (1 - percent) * 2 * 255; g = 255;
     } else {
        r = 255; g = percent * 2 * 255;
     }
-    return `rgba(${Math.round(r)}, ${Math.round(g)}, 0, 0.4)`;
+    return `rgba(${Math.round(r)}, ${Math.round(g)}, 0, 0.5)`;
   }
 
   const estimateTokenCost = () => {
@@ -438,29 +455,29 @@ export default function Home() {
 
         <td style={{ padding: '10px 8px', borderRight: '2px solid #333', fontWeight: 'bold', background: isExcluded ? 'transparent' : getGradient(fs, ranges.fnl.min, ranges.fnl.max, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{fs.toFixed(2)}</td>
 
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgOTT||0).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgAPP||0).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgARG||0).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgPUTT||0).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgT2G||0).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{(Number(stats.sgOTT||0)+Number(stats.sgAPP||0)).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '2px solid #333', fontWeight: 'bold' }}>{Number(stats.sgTotal||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.sgOTT||0), ranges.statsRanges.sgOTT?.min||0, ranges.statsRanges.sgOTT?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.sgOTT||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.sgAPP||0), ranges.statsRanges.sgAPP?.min||0, ranges.statsRanges.sgAPP?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.sgAPP||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.sgARG||0), ranges.statsRanges.sgARG?.min||0, ranges.statsRanges.sgARG?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.sgARG||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.sgPUTT||0), ranges.statsRanges.sgPUTT?.min||0, ranges.statsRanges.sgPUTT?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.sgPUTT||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.sgT2G||0), ranges.statsRanges.sgT2G?.min||0, ranges.statsRanges.sgT2G?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.sgT2G||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient((Number(stats.sgOTT||0)+Number(stats.sgAPP||0)), ranges.statsRanges.sgBS?.min||0, ranges.statsRanges.sgBS?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{(Number(stats.sgOTT||0)+Number(stats.sgAPP||0)).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '2px solid #333', fontWeight: 'bold' , background: isExcluded ? 'transparent' : getGradient(Number(stats.sgTotal||0), ranges.statsRanges.sgTotal?.min||0, ranges.statsRanges.sgTotal?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.sgTotal||0).toFixed(2)}</td>
         
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.eagles_or_better||0).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.birdies||0).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333', color: isExcluded ? '#aaa' : '#22c55e' }}>{Number(stats.bob||0).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333', color: isExcluded ? '#aaa' : '#ef4444' }}>{Number(stats.ba||0).toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '2px solid #333' }}>{Number(stats.doubles_or_worse||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.eagles_or_better||0), ranges.statsRanges.eagles_or_better?.min||0, ranges.statsRanges.eagles_or_better?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.eagles_or_better||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.birdies||0), ranges.statsRanges.birdies?.min||0, ranges.statsRanges.birdies?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.birdies||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333', background: isExcluded ? 'transparent' : getGradient(Number(stats.bob||0), ranges.statsRanges.bob?.min||0, ranges.statsRanges.bob?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.bob||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333', background: isExcluded ? 'transparent' : getGradient(Number(stats.ba||0), ranges.statsRanges.ba?.min||0, ranges.statsRanges.ba?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.ba||0).toFixed(2)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '2px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.doubles_or_worse||0), ranges.statsRanges.doubles_or_worse?.min||0, ranges.statsRanges.doubles_or_worse?.max||0, 'lowerIsBetter'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.doubles_or_worse||0).toFixed(2)}</td>
         
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.driving_dist||0).toFixed(1)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.driving_acc||0).toFixed(3)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.gir||0).toFixed(3)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.prox_fw||0).toFixed(1)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '2px solid #333' }}>{Number(stats.prox_rgh||0).toFixed(1)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.driving_dist||0), ranges.statsRanges.driving_dist?.min||0, ranges.statsRanges.driving_dist?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.driving_dist||0).toFixed(1)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.driving_acc||0), ranges.statsRanges.driving_acc?.min||0, ranges.statsRanges.driving_acc?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.driving_acc||0).toFixed(3)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.gir||0), ranges.statsRanges.gir?.min||0, ranges.statsRanges.gir?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.gir||0).toFixed(3)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.prox_fw||0), ranges.statsRanges.prox_fw?.min||0, ranges.statsRanges.prox_fw?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.prox_fw||0).toFixed(1)}</td>
+        <td style={{ padding: '10px 8px', borderRight: '2px solid #333' , background: isExcluded ? 'transparent' : getGradient(Number(stats.prox_rgh||0), ranges.statsRanges.prox_rgh?.min||0, ranges.statsRanges.prox_rgh?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{Number(stats.prox_rgh||0).toFixed(1)}</td>
         
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{p.putt_bermuda}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{p.putt_bentgrass}</td>
-        <td style={{ padding: '10px 8px', borderRight: '2px solid #333' }}>{p.putt_poa}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(p.putt_bermuda, ranges.statsRanges.putt_bermuda?.min||0, ranges.statsRanges.putt_bermuda?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{p.putt_bermuda}</td>
+        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' , background: isExcluded ? 'transparent' : getGradient(p.putt_bentgrass, ranges.statsRanges.putt_bentgrass?.min||0, ranges.statsRanges.putt_bentgrass?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{p.putt_bentgrass}</td>
+        <td style={{ padding: '10px 8px', borderRight: '2px solid #333' , background: isExcluded ? 'transparent' : getGradient(p.putt_poa, ranges.statsRanges.putt_poa?.min||0, ranges.statsRanges.putt_poa?.max||0, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{p.putt_poa}</td>
 
         <td style={{ padding: '10px 8px', textAlign: 'center' }}>
           <input type="checkbox" checked={!!ov.exclude} onChange={e => handleOverride(p.id, 'exclude', e.target.checked)} style={{ transform: 'scale(1.5)' }} />
