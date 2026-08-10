@@ -35,13 +35,11 @@ export default function Home() {
   const [roundsFilter, setRoundsFilter] = useState<'16'|'32'|'64'>('32');
   const [minSalary, setMinSalary] = useState(49000);
   const [maxSalary, setMaxSalary] = useState(50000);
+  const [optTarget, setOptTarget] = useState<'custom'|'dg'|'avg'>('custom');
   
-  // Toggles
-  const [showDgBaseline, setShowDgBaseline] = useState(false);
-
   // Sorting
   const [sortField, setSortField] = useState('modelScore');
-  const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
+  const [sortDir, setSortDir] = useState<'desc'|'asc'>('desc');
 
   // GPT Chat Notes
   const [gptNotes, setGptNotes] = useState('');
@@ -54,6 +52,8 @@ export default function Home() {
     driving_dist: 0, driving_acc: 0, gir: 5, scrambling: 5, prox_fw: 0, prox_rgh: 0, great_shots: 0, poor_shots: 0,
     putt_bermuda: 5, putt_bentgrass: 5, putt_poa: 0, wind: 5
   });
+
+  const totalWeight = Object.values(weights).reduce((sum, val) => sum + val, 0);
 
   useEffect(() => {
     fetch('/api/tournaments').then(res => res.json()).then(data => {
@@ -81,8 +81,16 @@ export default function Home() {
     fetchLivePlayers();
   }, []);
 
-  const handleWeightChange = (stat: keyof typeof weights, value: number) => {
-    setWeights(prev => ({ ...prev, [stat]: value }));
+  const handleWeightChange = (stat: keyof typeof weights, newValue: number) => {
+    const currentWeight = weights[stat];
+    const weightDifference = newValue - currentWeight;
+    
+    // Clamp so total doesn't exceed 100
+    if (totalWeight + weightDifference > 100) {
+      newValue = currentWeight + (100 - totalWeight);
+    }
+    
+    setWeights(prev => ({ ...prev, [stat]: newValue }));
     setLineups([]);
   };
 
@@ -112,7 +120,7 @@ export default function Home() {
   const getActiveStats = (p: GolferStats): SGStats => p[`stats${roundsFilter}` as keyof GolferStats] as SGStats || p.stats32 || {};
 
   const getModelScore = (p: GolferStats) => {
-    let score = p.projection; 
+    let score = 0; // Pure custom model decoupled from DG Base
     const stats = getActiveStats(p);
     if (!stats || Object.keys(stats).length === 0) return score;
     
@@ -148,23 +156,36 @@ export default function Home() {
     return score;
   };
 
-  const getRawValue = (p: GolferStats) => {
-    const score = getModelScore(p);
+  const getValueScore = (p: GolferStats) => {
     if (!p.salary) return 0;
-    return score / p.salary;
+    return (getModelScore(p) / p.salary) * 10000;
+  };
+  
+  const getDgValue = (p: GolferStats) => {
+    if (!p.salary) return 0;
+    return (p.projection / p.salary) * 10000;
   };
 
-  const maxRawValue = players.length > 0 ? Math.max(...players.map(p => getRawValue(p))) : 1;
+  const getAvgScore = (p: GolferStats) => {
+    return (getModelScore(p) + p.projection) / 2;
+  };
 
-  const getValueScore = (p: GolferStats) => {
-    const raw = getRawValue(p);
-    if (maxRawValue === 0) return 0;
-    return (raw / maxRawValue) * 100;
+  const getAvgValue = (p: GolferStats) => {
+    return (getValueScore(p) + getDgValue(p)) / 2;
   };
 
   const generateLineups = () => {
     if (players.length === 0) return alert('No player data available.');
-    const mappedPlayers = players.map(p => ({ ...p, projection: getModelScore(p), customWeight: 0 }));
+    
+    const mappedPlayers = players.map(p => {
+      let targetProj = 0;
+      if (optTarget === 'custom') targetProj = getModelScore(p);
+      else if (optTarget === 'dg') targetProj = p.projection;
+      else if (optTarget === 'avg') targetProj = getAvgScore(p);
+      
+      return { ...p, projection: targetProj, customWeight: 0 };
+    });
+    
     const optimized = LineupOptimizer.generateTopLineups(mappedPlayers, {
       minSalary, maxSalary, numLineups, maxExposure, minUniques
     });
@@ -202,6 +223,9 @@ export default function Home() {
     else if (sortField === 'modelScore') { aVal = getModelScore(a); bVal = getModelScore(b); }
     else if (sortField === 'valueScore') { aVal = getValueScore(a); bVal = getValueScore(b); }
     else if (sortField === 'dgBaseline') { aVal = a.projection; bVal = b.projection; }
+    else if (sortField === 'dgValue') { aVal = getDgValue(a); bVal = getDgValue(b); }
+    else if (sortField === 'avgScore') { aVal = getAvgScore(a); bVal = getAvgScore(b); }
+    else if (sortField === 'avgValue') { aVal = getAvgValue(a); bVal = getAvgValue(b); }
     else if (sortField === 'delta') { aVal = getModelScore(a) - a.projection; bVal = getModelScore(b) - b.projection; }
     else if (['putt_bermuda', 'putt_bentgrass', 'putt_poa', 'wind'].includes(sortField)) {
       aVal = (a as any)[sortField]; bVal = (b as any)[sortField];
@@ -216,7 +240,7 @@ export default function Home() {
 
   const renderSortHeader = (title: string, field: string) => (
     <th style={{ padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none', borderRight: '1px solid #333' }} onClick={() => handleSort(field)}>
-      {title} {sortField === field ? (sortDir === 'asc' ? '?' : '?') : ''}
+      {title} {sortField === field ? (sortDir === 'asc' ? '▲' : '▼') : ''}
     </th>
   );
 
@@ -236,16 +260,13 @@ export default function Home() {
       <header style={{ padding: '16px 24px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>SKRODERUP <span style={{ color: '#22c55e' }}>Custom Model</span></h1>
-          <select style={{ background: '#222', color: '#22c55e', padding: '6px 12px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }} value={roundsFilter} onChange={e => setRoundsFilter(e.target.value as any)}>
+          <select style={{ background: '#222', color: '#22c55e', padding: '6px 12px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }} value={roundsFilter} onChange={e => { setRoundsFilter(e.target.value as any); setLineups([]); }}>
             <option value="16">L16 Rounds</option><option value="32">L32 Rounds</option><option value="64">L64 Rounds</option>
           </select>
         </div>
         
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.8rem', color: '#aaa' }}>
-            <input type="checkbox" checked={showDgBaseline} onChange={e => setShowDgBaseline(e.target.checked)} /> Show DG Baseline
-          </label>
-          <select style={{ background: '#222', color: '#fff', padding: '8px 16px', border: '1px solid #444', borderRadius: '4px', maxWidth: '300px' }} value={selectedTournament} onChange={e => setSelectedTournament(e.target.value)}>
+          <select style={{ background: '#222', color: '#fff', padding: '8px 16px', border: '1px solid #444', borderRadius: '4px', maxWidth: '300px' }} value={selectedTournament} onChange={e => { setSelectedTournament(e.target.value); setLineups([]); }}>
             {tournaments.length > 0 ? tournaments.map((t, idx) => <option key={idx} value={t.event_name}>{t.event_name}</option>) : <option>Loading schedule...</option>}
           </select>
         </div>
@@ -269,7 +290,15 @@ export default function Home() {
               {gptReasoning && <div style={{ marginTop: '12px', padding: '8px', background: '#0a0a0a', borderLeft: '3px solid #3b82f6', fontSize: '0.8rem', color: '#aaa', fontStyle: 'italic' }}>{gptReasoning}</div>}
             </div>
 
-            <h3 style={{ marginBottom: '16px', fontSize: '0.9rem', textTransform: 'uppercase', color: '#888' }}>Model Weights (%)</h3>
+            <div style={{ position: 'sticky', top: '-20px', background: '#111', zIndex: 5, paddingBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
+                <h3 style={{ fontSize: '0.9rem', textTransform: 'uppercase', color: '#888', margin: 0 }}>Model Weights</h3>
+                <span style={{ fontSize: '0.8rem', color: totalWeight === 100 ? '#22c55e' : '#eab308', fontWeight: 'bold' }}>{totalWeight} / 100%</span>
+              </div>
+              <div style={{ width: '100%', height: '8px', background: '#333', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.min(100, totalWeight)}%`, background: totalWeight === 100 ? '#22c55e' : '#3b82f6', transition: 'width 0.2s, background 0.2s' }} />
+              </div>
+            </div>
             
             <details open style={{ marginBottom: '12px', background: '#1a1a1a', padding: '8px', borderRadius: '4px' }}>
               <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#fff', fontSize: '0.85rem' }}>Strokes Gained</summary>
@@ -323,6 +352,15 @@ export default function Home() {
           </div>
 
           <div style={{ padding: '20px', background: '#000', borderTop: '1px solid #333' }}>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Optimize Target</label>
+              <select value={optTarget} onChange={e => { setOptTarget(e.target.value as any); setLineups([]); }} style={{ width: '100%', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px' }}>
+                <option value="custom">Custom Model Score</option>
+                <option value="avg">Blended Average Score</option>
+                <option value="dg">DataGolf Baseline Score</option>
+              </select>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
               <label style={{ fontSize: '0.8rem', color: '#aaa' }}>Lineups to Build</label>
               <select value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); setLineups([]); }} style={{ background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '2px 6px' }}>
@@ -358,7 +396,7 @@ export default function Home() {
               {lineups.length > 0 && (
                 <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3 style={{ color: '#22c55e', margin: 0 }}>{lineups.length} Lineups Generated</h3>
+                    <h3 style={{ color: '#22c55e', margin: 0 }}>{lineups.length} Lineups Generated ({optTarget === 'custom' ? 'Custom' : optTarget === 'dg' ? 'DataGolf' : 'Blended'} Target)</h3>
                     <button onClick={exportDraftKingsCSV} style={{ background: '#3b82f6', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                       Export to DraftKings CSV
                     </button>
@@ -382,7 +420,11 @@ export default function Home() {
                   <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                     {/* Master Group Headers */}
                     <tr style={{ background: '#0a0a0a' }}>
-                      <th colSpan={showDgBaseline ? 6 : 4} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#888' }}>PLAYER INFO & MODEL</th>
+                      <th colSpan={2} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#888' }}>INFO</th>
+                      <th colSpan={3} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#22c55e' }}>CUSTOM MODEL</th>
+                      <th colSpan={2} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#3b82f6' }}>DATAGOLF</th>
+                      <th colSpan={2} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#eab308' }}>BLENDED (AVG)</th>
+                      
                       <th colSpan={5} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#3b82f6' }}>STROKES GAINED</th>
                       <th colSpan={4} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#eab308' }}>SCORING</th>
                       <th colSpan={5} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#f97316' }}>BALL STRIKING</th>
@@ -391,31 +433,41 @@ export default function Home() {
                     {/* Column Headers */}
                     <tr style={{ background: '#1a1a1a', borderBottom: '2px solid #333' }}>
                       {renderSortHeader('Golfer', 'name')}
-                      {renderSortHeader('Salary', 'salary')}
+                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('salary')}>Salary {sortField === 'salary' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
+                      
+                      {/* Custom Group */}
                       {renderSortHeader('Score', 'modelScore')}
-                      {showDgBaseline && renderSortHeader('DG Base', 'dgBaseline')}
-                      {showDgBaseline && renderSortHeader('?', 'delta')}
-                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('valueScore')}>Value {sortField === 'valueScore' ? (sortDir === 'asc' ? '?' : '?') : ''}</th>
+                      {renderSortHeader('Value', 'valueScore')}
+                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('delta')}>Δ {sortField === 'delta' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
+
+                      {/* DataGolf Group */}
+                      {renderSortHeader('DG Score', 'dgBaseline')}
+                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('dgValue')}>DG Value {sortField === 'dgValue' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
+
+                      {/* Blended Group */}
+                      {renderSortHeader('Avg Score', 'avgScore')}
+                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('avgValue')}>Avg Value {sortField === 'avgValue' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
+
                       
                       {/* SG Group */}
                       {renderSortHeader('OTT', 'sgOTT')}
                       {renderSortHeader('APP', 'sgAPP')}
                       {renderSortHeader('ARG', 'sgARG')}
                       {renderSortHeader('PUTT', 'sgPUTT')}
-                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('sgTotal')}>Total {sortField === 'sgTotal' ? (sortDir === 'asc' ? '?' : '?') : ''}</th>
+                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('sgTotal')}>Total {sortField === 'sgTotal' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
 
                       {/* Scoring Group */}
                       {renderSortHeader('RoundScore', 'round_score')}
                       {renderSortHeader('BOB', 'bob')}
                       {renderSortHeader('BA', 'ba')}
-                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('bogies')}>Bogies {sortField === 'bogies' ? (sortDir === 'asc' ? '?' : '?') : ''}</th>
+                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('bogies')}>Bogies {sortField === 'bogies' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
 
                       {/* Ball Striking Group */}
                       {renderSortHeader('Dist', 'driving_dist')}
                       {renderSortHeader('Acc', 'driving_acc')}
                       {renderSortHeader('GIR', 'gir')}
                       {renderSortHeader('Prox FW', 'prox_fw')}
-                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('prox_rgh')}>Prox RGH {sortField === 'prox_rgh' ? (sortDir === 'asc' ? '?' : '?') : ''}</th>
+                      <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('prox_rgh')}>Prox RGH {sortField === 'prox_rgh' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
 
                       {/* Putting Group */}
                       {renderSortHeader('Bermuda', 'putt_bermuda')}
@@ -427,22 +479,33 @@ export default function Home() {
                     {sortedPlayers.map((p, idx) => {
                       const modelScore = getModelScore(p);
                       const valueScore = getValueScore(p);
+                      const dgScore = p.projection;
+                      const dgValue = getDgValue(p);
+                      const avgScore = getAvgScore(p);
+                      const avgValue = getAvgValue(p);
+                      const delta = modelScore - dgScore;
                       const stats = getActiveStats(p);
-                      const delta = modelScore - p.projection;
+                      
                       return (
                         <tr key={p.id} style={{ borderBottom: '1px solid #222', background: idx % 2 === 0 ? '#111' : '#151515' }}>
                           <td style={{ padding: '10px 8px', fontWeight: 'bold', borderRight: '1px solid #333' }}>{p.name}</td>
-                          <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>${p.salary}</td>
-                          <td style={{ padding: '10px 8px', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem', borderRight: '1px solid #333' }}>{modelScore.toFixed(2)}</td>
+                          <td style={{ padding: '10px 8px', borderRight: '2px solid #333' }}>${p.salary}</td>
                           
-                          {showDgBaseline && <td style={{ padding: '10px 8px', color: '#aaa', borderRight: '1px solid #333' }}>{p.projection.toFixed(2)}</td>}
-                          {showDgBaseline && (
-                            <td style={{ padding: '10px 8px', borderRight: '1px solid #333', fontWeight: 'bold', color: delta > 0 ? '#22c55e' : delta < 0 ? '#ef4444' : '#aaa' }}>
-                              {delta > 0 ? '+' : ''}{delta.toFixed(2)}
-                            </td>
-                          )}
-
-                          <td style={{ padding: '10px 8px', color: '#3b82f6', fontWeight: 'bold', fontSize: '0.9rem', borderRight: '2px solid #333' }}>{valueScore === 0 ? '-' : valueScore.toFixed(1)}</td>
+                          {/* Custom */}
+                          <td style={{ padding: '10px 8px', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem', borderRight: '1px solid #333' }}>{modelScore.toFixed(2)}</td>
+                          <td style={{ padding: '10px 8px', color: '#22c55e', borderRight: '1px solid #333' }}>{valueScore.toFixed(1)}</td>
+                          <td style={{ padding: '10px 8px', borderRight: '2px solid #333', fontWeight: 'bold', color: delta > 0 ? '#22c55e' : delta < 0 ? '#ef4444' : '#aaa' }}>
+                            {delta > 0 ? '+' : ''}{delta.toFixed(2)}
+                          </td>
+                          
+                          {/* DataGolf */}
+                          <td style={{ padding: '10px 8px', color: '#3b82f6', fontWeight: 'bold', borderRight: '1px solid #333' }}>{dgScore.toFixed(2)}</td>
+                          <td style={{ padding: '10px 8px', color: '#3b82f6', borderRight: '2px solid #333' }}>{dgValue.toFixed(1)}</td>
+                          
+                          {/* Blended Avg */}
+                          <td style={{ padding: '10px 8px', color: '#eab308', fontWeight: 'bold', borderRight: '1px solid #333' }}>{avgScore.toFixed(2)}</td>
+                          <td style={{ padding: '10px 8px', color: '#eab308', borderRight: '2px solid #333' }}>{avgValue.toFixed(1)}</td>
+                          
                           
                           <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgOTT||0).toFixed(2)}</td>
                           <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgAPP||0).toFixed(2)}</td>
