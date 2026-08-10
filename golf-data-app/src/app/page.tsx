@@ -52,6 +52,7 @@ export default function Home() {
   // GPT Chat Notes
   const [gptNotes, setGptNotes] = useState('');
   const [gptReasoning, setGptReasoning] = useState('');
+  const [gptModel, setGptModel] = useState('gpt-4o-mini');
 
   const [weights, setWeights] = useState({
     sgOTT: 10,
@@ -102,6 +103,25 @@ export default function Home() {
     setWeights(prev => ({ ...prev, [stat]: value }));
   };
 
+  const estimateTokenCost = () => {
+    // Very rough estimate of cost
+    const systemPromptTokens = 250; 
+    const customPromptTokens = Math.ceil(gptNotes.length / 4);
+    const totalTokens = systemPromptTokens + customPromptTokens;
+    
+    // gpt-4o: $5.00 / 1M input tokens => $0.005 / 1k
+    // gpt-4o-mini: $0.150 / 1M input tokens => $0.00015 / 1k
+    let cost = 0;
+    if (gptModel === 'gpt-4o') {
+      cost = (totalTokens / 1000) * 0.005;
+    } else {
+      cost = (totalTokens / 1000) * 0.00015;
+    }
+    
+    if (cost < 0.001) return '< $0.001';
+    return `~$${cost.toFixed(3)}`;
+  };
+
   const aiAutoWeight = async () => {
     setIsAiLoading(true);
     setGptReasoning('');
@@ -109,7 +129,7 @@ export default function Home() {
       const res = await fetch('/api/ai/course-fit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournament: selectedTournament, userNotes: gptNotes })
+        body: JSON.stringify({ tournament: selectedTournament, userNotes: gptNotes, gptModel })
       });
       const data = await res.json();
       if (data.success && data.weights) {
@@ -141,8 +161,7 @@ export default function Home() {
     score += (stats.sgT2G * (weights.sgT2G / 10));
     score += (stats.sgTotal * (weights.sgTotal / 10));
     score += (stats.bob * (weights.bob / 10));
-    score += (stats.ba * (weights.ba / 10)); // BA is technically negative usually, so a negative number is bad. Higher is better if they don't get bogeys? Wait, bogies + doubles is a count. Lower is better. So we subtract it.
-    score -= (stats.ba * (weights.ba / 10));
+    score -= (stats.ba * (weights.ba / 10)); 
     score += ((p.distance || 0) * (weights.distance / 100));
     score += ((p.accuracy || 0) * (weights.accuracy / 100));
     score += (p.putt_bermuda * (weights.putt_bermuda / 1000));
@@ -254,7 +273,13 @@ export default function Home() {
           <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
             
             <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
-              <h3 style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#3b82f6' }}>AI Course Adjust</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ fontSize: '0.9rem', color: '#3b82f6', margin: 0 }}>AI Course Adjust</h3>
+                <select value={gptModel} onChange={(e) => setGptModel(e.target.value)} style={{ background: '#000', color: '#3b82f6', border: '1px solid #333', borderRadius: '4px', padding: '2px 6px', fontSize: '0.75rem' }}>
+                  <option value="gpt-4o-mini">GPT-4o Mini</option>
+                  <option value="gpt-4o">GPT-4o</option>
+                </select>
+              </div>
               <textarea 
                 placeholder="Add custom notes for GPT (e.g., 'Weight accuracy heavily, rough is thick...')"
                 value={gptNotes}
@@ -262,7 +287,7 @@ export default function Home() {
                 style={{ width: '100%', height: '60px', background: '#000', color: '#fff', border: '1px solid #444', padding: '8px', borderRadius: '4px', fontSize: '0.8rem', marginBottom: '8px' }}
               />
               <button onClick={aiAutoWeight} disabled={isAiLoading || isDataLoading} style={{ width: '100%', background: '#3b82f6', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: isAiLoading ? 'wait' : 'pointer', fontWeight: 'bold' }}>
-                {isAiLoading ? 'Analyzing...' : 'Ask AI to Weight Course'}
+                {isAiLoading ? 'Analyzing...' : `Ask AI to Weight Course (Est. ${estimateTokenCost()})`}
               </button>
               
               {gptReasoning && (
@@ -349,7 +374,7 @@ export default function Home() {
                 <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3 style={{ color: '#22c55e', margin: 0 }}>{lineups.length} Lineup{lineups.length !== 1 && 's'} Generated</h3>
+                    <h3 style={{ color: '#22c55e', margin: 0 }}>{lineups.length} Lineups Generated</h3>
                     <div style={{ display: 'flex', gap: '24px', background: '#000', padding: '8px 16px', borderRadius: '4px', border: '1px solid #333' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontSize: '0.75rem', color: '#888' }}>Total Risk</span>
