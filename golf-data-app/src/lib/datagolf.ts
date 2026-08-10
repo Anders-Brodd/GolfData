@@ -29,4 +29,11 @@ export class DataGolfAPI {
     if (!res.ok) throw new Error(`DataGolf getTourSchedules failed: ${res.statusText}`);
     return res.json();
   }
+
+  async getHistoricalRawRounds(year: string, tour = 'pga') {
+    const url = `${this.baseUrl}/historical-raw-data/rounds?tour=${tour}&event_id=all&year=${year}&file_format=json&key=${this.apiKey}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`DataGolf getHistoricalRawRounds failed: ${res.statusText}`);
+    return res.json();
+  }
 }

@@ -2,18 +2,24 @@
 import { useState, useEffect } from 'react';
 import { LineupOptimizer, PlayerData, Lineup } from '@/lib/optimizer';
 
-interface GolferStats extends PlayerData {
+interface SGStats {
   sgOTT: number;
   sgAPP: number;
   sgARG: number;
   sgPUTT: number;
   sgT2G: number;
   sgTotal: number;
+}
+
+interface GolferStats extends PlayerData {
+  stats16: SGStats;
+  stats32: SGStats;
+  stats64: SGStats;
   distance: number;
   accuracy: number;
-  bermuda: number;
-  bentgrass: number;
-  poa: number;
+  putt_bermuda: number;
+  putt_bentgrass: number;
+  putt_poa: number;
   wind: number;
 }
 
@@ -32,6 +38,15 @@ export default function Home() {
   const [betEntry, setBetEntry] = useState(20);
   const [prizePool, setPrizePool] = useState(100000);
   
+  // Advanced Settings
+  const [roundsFilter, setRoundsFilter] = useState<'16'|'32'|'64'>('32');
+  const [minSalary, setMinSalary] = useState(49000);
+  const [maxSalary, setMaxSalary] = useState(50000);
+  
+  // GPT Chat Notes
+  const [gptNotes, setGptNotes] = useState('');
+  const [gptReasoning, setGptReasoning] = useState('');
+
   const [weights, setWeights] = useState({
     sgOTT: 10,
     sgAPP: 20,
@@ -41,9 +56,9 @@ export default function Home() {
     sgTotal: 10,
     distance: 5,
     accuracy: 5,
-    bermuda: 5,
-    bentgrass: 5,
-    poa: 5,
+    putt_bermuda: 5,
+    putt_bentgrass: 5,
+    putt_poa: 5,
     wind: 10
   });
 
@@ -85,18 +100,18 @@ export default function Home() {
 
   const aiAutoWeight = async () => {
     setIsAiLoading(true);
+    setGptReasoning('');
     try {
       const res = await fetch('/api/ai/course-fit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournament: selectedTournament })
+        body: JSON.stringify({ tournament: selectedTournament, userNotes: gptNotes })
       });
       const data = await res.json();
       
       if (data.success && data.weights) {
-        // Merge GPT weights (some might be missing so fallback to current)
         setWeights(prev => ({ ...prev, ...data.weights }));
-        alert(`GPT Successfully Analyzed ${selectedTournament}! Weights updated.`);
+        setGptReasoning(data.reasoning || 'No reasoning provided by AI.');
       } else {
         alert('GPT Analysis failed: ' + (data.error || 'Unknown error'));
       }
@@ -106,20 +121,27 @@ export default function Home() {
     setIsAiLoading(false);
   };
 
+  const getActiveStats = (p: GolferStats): SGStats => {
+    if (roundsFilter === '16') return p.stats16;
+    if (roundsFilter === '64') return p.stats64;
+    return p.stats32;
+  };
+
   const getModelScore = (p: GolferStats) => {
     let score = p.projection; 
-    score += (p.sgOTT * (weights.sgOTT / 10));
-    score += (p.sgAPP * (weights.sgAPP / 10));
-    score += (p.sgARG * (weights.sgARG / 10));
-    score += (p.sgPUTT * (weights.sgPUTT / 10));
-    score += (p.sgT2G * (weights.sgT2G / 10));
-    score += (p.sgTotal * (weights.sgTotal / 10));
-    score += (p.distance * (weights.distance / 100));
-    score += (p.accuracy * (weights.accuracy / 100));
-    // GPT stats are 1-100, we divide by 10 to keep it in a similar range to SG
-    score += (p.bermuda * (weights.bermuda / 1000));
-    score += (p.bentgrass * (weights.bentgrass / 1000));
-    score += (p.poa * (weights.poa / 1000));
+    const stats = getActiveStats(p);
+    
+    score += (stats.sgOTT * (weights.sgOTT / 10));
+    score += (stats.sgAPP * (weights.sgAPP / 10));
+    score += (stats.sgARG * (weights.sgARG / 10));
+    score += (stats.sgPUTT * (weights.sgPUTT / 10));
+    score += (stats.sgT2G * (weights.sgT2G / 10));
+    score += (stats.sgTotal * (weights.sgTotal / 10));
+    score += ((p.distance || 0) * (weights.distance / 100));
+    score += ((p.accuracy || 0) * (weights.accuracy / 100));
+    score += (p.putt_bermuda * (weights.putt_bermuda / 1000));
+    score += (p.putt_bentgrass * (weights.putt_bentgrass / 1000));
+    score += (p.putt_poa * (weights.putt_poa / 1000));
     score += (p.wind * (weights.wind / 1000));
     return score;
   };
@@ -133,7 +155,7 @@ export default function Home() {
     }));
     
     const lineupCount = contestType === 'Single Entry' ? 1 : 50;
-    const optimized = LineupOptimizer.generateTopLineups(mappedPlayers, lineupCount);
+    const optimized = LineupOptimizer.generateTopLineups(mappedPlayers, lineupCount, { minSalary, maxSalary });
     setLineups(optimized);
   };
 
@@ -141,7 +163,18 @@ export default function Home() {
     <main style={{ padding: '0', height: '100vh', display: 'flex', flexDirection: 'column', background: '#0a0a0a', color: '#fff', fontFamily: 'sans-serif' }}>
       
       <header style={{ padding: '16px 24px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>SKRODERUP <span style={{ color: '#22c55e' }}>Custom Model</span></h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>SKRODERUP <span style={{ color: '#22c55e' }}>Custom Model</span></h1>
+          <select 
+            style={{ background: '#222', color: '#22c55e', padding: '6px 12px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }} 
+            value={roundsFilter} 
+            onChange={e => setRoundsFilter(e.target.value as any)}
+          >
+            <option value="16">L16 Rounds</option>
+            <option value="32">L32 Rounds</option>
+            <option value="64">L64 Rounds</option>
+          </select>
+        </div>
         
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <select 
@@ -157,21 +190,38 @@ export default function Home() {
               <option>Loading schedule...</option>
             )}
           </select>
-          <button onClick={aiAutoWeight} disabled={isAiLoading || isDataLoading} style={{ background: '#3b82f6', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: isAiLoading ? 'wait' : 'pointer', fontWeight: 'bold' }}>
-            {isAiLoading ? '?? Analyzing Course...' : '?? GPT Course Adjust'}
-          </button>
         </div>
       </header>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
-        <aside style={{ width: '340px', background: '#111', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
+        <aside style={{ width: '360px', background: '#111', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-            <h3 style={{ marginBottom: '20px', fontSize: '0.9rem', textTransform: 'uppercase', color: '#888' }}>Model Weights (%)</h3>
+            
+            <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
+              <h3 style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#3b82f6' }}>? AI Course Adjust</h3>
+              <textarea 
+                placeholder="Add custom notes for GPT (e.g., 'Weight accuracy heavily, rough is thick...')"
+                value={gptNotes}
+                onChange={e => setGptNotes(e.target.value)}
+                style={{ width: '100%', height: '60px', background: '#000', color: '#fff', border: '1px solid #444', padding: '8px', borderRadius: '4px', fontSize: '0.8rem', marginBottom: '8px' }}
+              />
+              <button onClick={aiAutoWeight} disabled={isAiLoading || isDataLoading} style={{ width: '100%', background: '#3b82f6', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: isAiLoading ? 'wait' : 'pointer', fontWeight: 'bold' }}>
+                {isAiLoading ? 'Analyzing...' : 'Ask AI to Weight Course'}
+              </button>
+              
+              {gptReasoning && (
+                <div style={{ marginTop: '12px', padding: '8px', background: '#0a0a0a', borderLeft: '3px solid #3b82f6', fontSize: '0.8rem', color: '#aaa', fontStyle: 'italic' }}>
+                  {gptReasoning}
+                </div>
+              )}
+            </div>
+
+            <h3 style={{ marginBottom: '16px', fontSize: '0.9rem', textTransform: 'uppercase', color: '#888' }}>Model Weights (%)</h3>
             
             {Object.entries(weights).map(([stat, weight]) => (
-              <div key={stat} style={{ marginBottom: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.8rem' }}>
+              <div key={stat} style={{ marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '0.75rem' }}>
                   <span>{stat.toUpperCase()}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -180,15 +230,29 @@ export default function Home() {
                     min="0" max="100" 
                     value={weight} 
                     onChange={(e) => handleWeightChange(stat as keyof typeof weights, Number(e.target.value))}
-                    style={{ flex: 1, background: '#222', color: '#22c55e', padding: '6px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }}
+                    style={{ flex: 1, background: '#222', color: '#22c55e', padding: '4px 6px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }}
                   />
-                  <span style={{ color: '#888', fontSize: '0.9rem' }}>%</span>
+                  <span style={{ color: '#888', fontSize: '0.8rem' }}>%</span>
                 </div>
               </div>
             ))}
           </div>
 
           <div style={{ padding: '20px', background: '#000', borderTop: '1px solid #333' }}>
+            
+            <details style={{ marginBottom: '16px' }}>
+              <summary style={{ fontSize: '0.8rem', color: '#888', cursor: 'pointer', marginBottom: '8px' }}>Advanced Settings</summary>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label>
+                  <input type="number" value={minSalary} onChange={e => setMinSalary(Number(e.target.value))} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Max Salary</label>
+                  <input type="number" value={maxSalary} onChange={e => setMaxSalary(Number(e.target.value))} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                </div>
+              </div>
+            </details>
             
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Contest Type</label>
@@ -224,8 +288,6 @@ export default function Home() {
           ) : dataError ? (
              <div style={{ color: '#ef4444', fontSize: '1.2rem', padding: '40px', textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid #ef4444' }}>
                {dataError}
-               <br/><br/>
-               <span style={{ fontSize: '1rem', color: '#fff' }}>Please verify the DataGolf API endpoints in your backend sync script.</span>
              </div>
           ) : (
             <>
@@ -233,8 +295,7 @@ export default function Home() {
                 <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3 style={{ color: '#22c55e', margin: 0 }}>? {lineups.length} Lineup{lineups.length !== 1 && 's'} Generated Successfully</h3>
-                    
+                    <h3 style={{ color: '#22c55e', margin: 0 }}>? {lineups.length} Lineup{lineups.length !== 1 && 's'} Generated</h3>
                     <div style={{ display: 'flex', gap: '24px', background: '#000', padding: '8px 16px', borderRadius: '4px', border: '1px solid #333' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontSize: '0.75rem', color: '#888' }}>Total Risk</span>
@@ -261,9 +322,6 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
-                  <p style={{ fontSize: '0.8rem', color: '#888', marginTop: '8px' }}>
-                    {contestType === 'Single Entry' ? 'Showing Optimal Single Entry Lineup.' : 'Showing top 5 of 50 MME Lineups. Export feature coming soon.'}
-                  </p>
                 </div>
               )}
 
@@ -274,28 +332,35 @@ export default function Home() {
                       <th style={{ padding: '8px', color: '#888' }}>Golfer</th>
                       <th style={{ padding: '8px', color: '#888' }}>Salary</th>
                       <th style={{ padding: '8px', color: '#22c55e' }}>Model Score</th>
+                      <th style={{ padding: '8px', color: '#888' }}>SG:OTT</th>
+                      <th style={{ padding: '8px', color: '#888' }}>SG:APP</th>
+                      <th style={{ padding: '8px', color: '#888' }}>SG:ARG</th>
+                      <th style={{ padding: '8px', color: '#888' }}>SG:PUTT</th>
                       <th style={{ padding: '8px', color: '#888' }}>SG:T2G</th>
                       <th style={{ padding: '8px', color: '#888' }}>SG:Tot</th>
-                      <th style={{ padding: '8px', color: '#888' }}>Bermuda</th>
-                      <th style={{ padding: '8px', color: '#888' }}>Bent</th>
-                      <th style={{ padding: '8px', color: '#888' }}>Poa</th>
-                      <th style={{ padding: '8px', color: '#888' }}>Wind</th>
+                      <th style={{ padding: '8px', color: '#888' }}>Putt. Berm</th>
+                      <th style={{ padding: '8px', color: '#888' }}>Putt. Bent</th>
+                      <th style={{ padding: '8px', color: '#888' }}>Putt. Poa</th>
                     </tr>
                   </thead>
                   <tbody>
                     {players.map(p => {
                       const modelScore = getModelScore(p);
+                      const stats = getActiveStats(p);
                       return (
                         <tr key={p.id} style={{ borderBottom: '1px solid #222' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>{p.name}</td>
                           <td style={{ padding: '8px' }}>${p.salary}</td>
                           <td style={{ padding: '8px', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem' }}>{modelScore.toFixed(2)}</td>
-                          <td style={{ padding: '8px' }}>{p.sgT2G.toFixed(2)}</td>
-                          <td style={{ padding: '8px' }}>{p.sgTotal.toFixed(2)}</td>
-                          <td style={{ padding: '8px' }}>{p.bermuda}</td>
-                          <td style={{ padding: '8px' }}>{p.bentgrass}</td>
-                          <td style={{ padding: '8px' }}>{p.poa}</td>
-                          <td style={{ padding: '8px' }}>{p.wind}</td>
+                          <td style={{ padding: '8px' }}>{stats.sgOTT.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{stats.sgAPP.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{stats.sgARG.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{stats.sgPUTT.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{stats.sgT2G.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{stats.sgTotal.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{p.putt_bermuda}</td>
+                          <td style={{ padding: '8px' }}>{p.putt_bentgrass}</td>
+                          <td style={{ padding: '8px' }}>{p.putt_poa}</td>
                         </tr>
                       );
                     })}

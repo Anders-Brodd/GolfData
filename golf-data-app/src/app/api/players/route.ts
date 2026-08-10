@@ -18,18 +18,13 @@ export async function GET() {
       const salary = Number(p.salary || p.dk_salary || 0);
       const projection = Number(p.proj_points_total || p.proj_pts || 0);
       
-      const sgOTT = Number(p.sg_ott || 0);
-      const sgAPP = Number(p.sg_app || 0);
-      const sgARG = Number(p.sg_arg || 0);
-      const sgPUTT = Number(p.sg_putt || 0);
-      const sgT2G = Number(p.sg_t2g || 0);
-      const sgTotal = Number(p.sg_total || 0);
-      const distance = Number(p.driving_dist || 0);
-      const accuracy = Number(p.driving_acc || 0);
+      const stats16 = p.stats16 || { sgOTT: 0, sgAPP: 0, sgARG: 0, sgPUTT: 0, sgT2G: 0, sgTotal: 0 };
+      const stats32 = p.stats32 || { sgOTT: 0, sgAPP: 0, sgARG: 0, sgPUTT: 0, sgT2G: 0, sgTotal: 0 };
+      const stats64 = p.stats64 || { sgOTT: 0, sgAPP: 0, sgARG: 0, sgPUTT: 0, sgT2G: 0, sgTotal: 0 };
       
-      const bermuda = Number(p.bermuda || 50);
-      const bentgrass = Number(p.bentgrass || 50);
-      const poa = Number(p.poa || 50);
+      const putt_bermuda = Number(p.putt_bermuda || 50);
+      const putt_bentgrass = Number(p.putt_bentgrass || 50);
+      const putt_poa = Number(p.putt_poa || 50);
       const wind = Number(p.wind || 50);
       
       return {
@@ -38,17 +33,12 @@ export async function GET() {
         salary,
         projection,
         customWeight: 0,
-        sgOTT,
-        sgAPP,
-        sgARG,
-        sgPUTT,
-        sgT2G,
-        sgTotal,
-        distance,
-        accuracy,
-        bermuda,
-        bentgrass,
-        poa,
+        stats16,
+        stats32,
+        stats64,
+        putt_bermuda,
+        putt_bentgrass,
+        putt_poa,
         wind
       };
     }).filter((p: any) => p.salary > 0); 

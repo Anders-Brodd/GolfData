@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server';
 import { DataGolfAPI } from '@/lib/datagolf';
-import { uploadData } from '@/lib/b2';
+import { uploadData, getData } from '@/lib/b2';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-async function getGptPlayerStats(playerNames: string[]) {
+async function getGptPuttingStats(playerNames: string[]) {
   try {
     const prompt = `
 You are a PGA DFS Golf expert. 
-For each of the following golfers, provide a historical skill rating from 1-100 on:
-- bermuda (Bermuda grass)
-- bentgrass (Bentgrass)
-- poa (Poa annua grass)
+For each of the following golfers, provide a qualitative historical skill rating from 1-100 on:
+- putt_bermuda (Putting on Bermuda grass)
+- putt_bentgrass (Putting on Bentgrass)
+- putt_poa (Putting on Poa annua grass)
 - wind (High Wind Conditions)
 
 Return ONLY a raw JSON object where the keys are the EXACT player names provided, and the values are the rating objects.
 Example:
 {
-  "Scheffler, Scottie": { "bermuda": 95, "bentgrass": 92, "poa": 88, "wind": 90 }
+  "Scheffler, Scottie": { "putt_bermuda": 95, "putt_bentgrass": 92, "putt_poa": 88, "wind": 90 }
 }
 
 Golfers to rate:
@@ -34,8 +34,33 @@ ${playerNames.join(', ')}
     return JSON.parse(response.choices[0].message.content || '{}');
   } catch (err) {
     console.error('GPT Player Stats Error:', err);
-    return {}; // fallback
+    return {}; 
   }
+}
+
+function calculateRollingAverages(rounds: any[], count: number) {
+  if (rounds.length === 0) return { sgOTT: 0, sgAPP: 0, sgARG: 0, sgPUTT: 0, sgT2G: 0, sgTotal: 0 };
+  
+  const targetRounds = rounds.slice(0, count);
+  const sums = targetRounds.reduce((acc, r) => {
+    acc.sgOTT += Number(r.sg_ott || 0);
+    acc.sgAPP += Number(r.sg_app || 0);
+    acc.sgARG += Number(r.sg_arg || 0);
+    acc.sgPUTT += Number(r.sg_putt || 0);
+    acc.sgT2G += Number(r.sg_t2g || 0);
+    acc.sgTotal += Number(r.sg_total || 0);
+    return acc;
+  }, { sgOTT: 0, sgAPP: 0, sgARG: 0, sgPUTT: 0, sgT2G: 0, sgTotal: 0 });
+
+  const len = targetRounds.length;
+  return {
+    sgOTT: sums.sgOTT / len,
+    sgAPP: sums.sgAPP / len,
+    sgARG: sums.sgARG / len,
+    sgPUTT: sums.sgPUTT / len,
+    sgT2G: sums.sgT2G / len,
+    sgTotal: sums.sgTotal / len
+  };
 }
 
 export async function GET() {
@@ -46,15 +71,6 @@ export async function GET() {
     console.log('Fetching DataGolf fantasy projections...');
     const projData = await dg.getFantasyProjections('pga', 'draftkings', 'main');
     
-    // 2. Fetch Player Skill (Strokes Gained)
-    console.log('Fetching DataGolf player skill...');
-    const skillData = await dg.getPlayerSkill('value');
-    
-    const skillMap = new Map();
-    if (skillData.players && Array.isArray(skillData.players)) {
-      skillData.players.forEach((p: any) => skillMap.set(p.dg_id, p));
-    }
-
     let projectionsArray = [];
     if (projData.projections && Array.isArray(projData.projections)) {
       projectionsArray = projData.projections;
@@ -62,37 +78,52 @@ export async function GET() {
       projectionsArray = projData;
     }
 
-    // 3. Ask GPT to formulate stats for all players
+    // 2. Load Raw Rounds from B2
+    console.log('Fetching Raw Rounds from Backblaze...');
+    const [r2024, r2025, r2026] = await Promise.all([
+      getData('raw_rounds_2024.json').catch(() => []),
+      getData('raw_rounds_2025.json').catch(() => []),
+      getData('raw_rounds_2026.json').catch(() => [])
+    ]);
+
+    const allRounds = [...(Array.isArray(r2024) ? r2024 : []), ...(Array.isArray(r2025) ? r2025 : []), ...(Array.isArray(r2026) ? r2026 : [])];
+    
+    // Group by dg_id and sort chronologically (most recent first)
+    const roundsByPlayer = new Map();
+    allRounds.forEach(r => {
+      const id = String(r.dg_id);
+      if (!roundsByPlayer.has(id)) roundsByPlayer.set(id, []);
+      roundsByPlayer.get(id).push(r);
+    });
+
+    roundsByPlayer.forEach(rounds => {
+      // sort by date descending (assuming r.date exists or r.round_id/event_id indicates time)
+      // data golf raw rounds usually have 'date' or 'event_completed' or 'round'
+      rounds.sort((a: any, b: any) => new Date(b.date || b.start_date || 0).getTime() - new Date(a.date || a.start_date || 0).getTime());
+    });
+
+    // 3. Ask GPT to formulate qualitative stats
     console.log('Fetching GPT formulations for grass/wind...');
     const playerNames = projectionsArray.map((p: any) => p.player_name).filter(Boolean);
-    
-    // We can chunk this if it's too big, but GPT-4o-mini has a 16k output limit which is huge.
-    // 150 players * 40 tokens per player = 6000 tokens (well within limits).
-    const gptStats = await getGptPlayerStats(playerNames);
+    const gptStats = await getGptPuttingStats(playerNames);
 
     // 4. Merge all data
     const mergedData = projectionsArray.map((proj: any) => {
-      const skills = skillMap.get(proj.dg_id) || {};
-      const gpt = gptStats[proj.player_name] || { bermuda: 50, bentgrass: 50, poa: 50, wind: 50 };
+      const gpt = gptStats[proj.player_name] || { putt_bermuda: 50, putt_bentgrass: 50, putt_poa: 50, wind: 50 };
+      const pRounds = roundsByPlayer.get(String(proj.dg_id)) || [];
       
-      const sg_ott = skills.sg_ott || 0;
-      const sg_app = skills.sg_app || 0;
-      const sg_arg = skills.sg_arg || 0;
-      const sg_putt = skills.sg_putt || 0;
+      const stats16 = calculateRollingAverages(pRounds, 16);
+      const stats32 = calculateRollingAverages(pRounds, 32);
+      const stats64 = calculateRollingAverages(pRounds, 64);
       
       return {
         ...proj,
-        sg_ott,
-        sg_app,
-        sg_arg,
-        sg_putt,
-        sg_t2g: sg_ott + sg_app + sg_arg,
-        sg_total: sg_ott + sg_app + sg_arg + sg_putt,
-        driving_dist: skills.driving_dist || 0,
-        driving_acc: skills.driving_acc || 0,
-        bermuda: gpt.bermuda || 50,
-        bentgrass: gpt.bentgrass || 50,
-        poa: gpt.poa || 50,
+        stats16,
+        stats32,
+        stats64,
+        putt_bermuda: gpt.putt_bermuda || 50,
+        putt_bentgrass: gpt.putt_bentgrass || 50,
+        putt_poa: gpt.putt_poa || 50,
         wind: gpt.wind || 50
       };
     });
