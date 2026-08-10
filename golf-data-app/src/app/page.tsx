@@ -18,9 +18,21 @@ interface GolferStats extends PlayerData {
   wind: number;
 }
 
+interface SaveSlot<T> {
+  name: string;
+  data: T;
+}
+
+const DEFAULT_WEIGHTS = {
+  sgOTT: 10, sgAPP: 10, sgARG: 5, sgPUTT: 5, sgT2G: 10, sgTotal: 5,
+  round_score: 5, eagles_or_better: 0, birdies: 5, pars: 0, bogies: 0, doubles_or_worse: 0, bob: 5, ba: 5,
+  driving_dist: 0, driving_acc: 0, gir: 5, scrambling: 5, prox_fw: 0, prox_rgh: 0, great_shots: 0, poor_shots: 0,
+  putt_bermuda: 5, putt_bentgrass: 5, putt_poa: 0, wind: 5
+};
+
 export default function Home() {
   const [tournaments, setTournaments] = useState<any[]>([]);
-  const [selectedTournament, setSelectedTournament] = useState('Masters Tournament');
+  const [selectedTournament, setSelectedTournament] = useState('');
   const [players, setPlayers] = useState<GolferStats[]>([]);
   const [lineups, setLineups] = useState<Lineup[]>([]);
   
@@ -46,20 +58,49 @@ export default function Home() {
   const [gptReasoning, setGptReasoning] = useState('');
   const [gptModel, setGptModel] = useState('gpt-4o-mini');
 
-  const [weights, setWeights] = useState({
-    sgOTT: 10, sgAPP: 10, sgARG: 5, sgPUTT: 5, sgT2G: 10, sgTotal: 5,
-    round_score: 5, eagles_or_better: 0, birdies: 5, pars: 0, bogies: 0, doubles_or_worse: 0, bob: 5, ba: 5,
-    driving_dist: 0, driving_acc: 0, gir: 5, scrambling: 5, prox_fw: 0, prox_rgh: 0, great_shots: 0, poor_shots: 0,
-    putt_bermuda: 5, putt_bentgrass: 5, putt_poa: 0, wind: 5
-  });
-
+  const [weights, setWeights] = useState(DEFAULT_WEIGHTS);
   const totalWeight = Object.values(weights).reduce((sum, val) => sum + val, 0);
+
+  // --- SAVE SLOTS STATE ---
+  const [weightSlots, setWeightSlots] = useState<SaveSlot<typeof DEFAULT_WEIGHTS>[]>(Array(10).fill({ name: 'Empty Slot', data: null }));
+  const [activeWeightSlot, setActiveWeightSlot] = useState<number>(-1);
+  const [lineupSlots, setLineupSlots] = useState<SaveSlot<Lineup[]>[]>(Array(10).fill({ name: 'Empty Slot', data: null }));
+  const [activeLineupSlot, setActiveLineupSlot] = useState<number>(-1);
+  
+  // Load from LocalStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedWeights = localStorage.getItem('skroderup_active_weights');
+      if (savedWeights) setWeights(JSON.parse(savedWeights));
+      
+      const savedLineups = localStorage.getItem('skroderup_active_lineups');
+      if (savedLineups) setLineups(JSON.parse(savedLineups));
+
+      const wSlots = localStorage.getItem('skroderup_weight_slots');
+      if (wSlots) setWeightSlots(JSON.parse(wSlots));
+
+      const lSlots = localStorage.getItem('skroderup_lineup_slots');
+      if (lSlots) setLineupSlots(JSON.parse(lSlots));
+    }
+  }, []);
+
+  // Save to LocalStorage on change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('skroderup_active_weights', JSON.stringify(weights));
+      localStorage.setItem('skroderup_active_lineups', JSON.stringify(lineups));
+      localStorage.setItem('skroderup_weight_slots', JSON.stringify(weightSlots));
+      localStorage.setItem('skroderup_lineup_slots', JSON.stringify(lineupSlots));
+    }
+  }, [weights, lineups, weightSlots, lineupSlots]);
 
   useEffect(() => {
     fetch('/api/tournaments').then(res => res.json()).then(data => {
       if (data.success && data.schedule) {
         setTournaments(data.schedule);
-        if (data.schedule.length > 0) setSelectedTournament(data.schedule[0].event_name);
+        const upcoming = data.schedule.find((t: any) => t.event_completed === "0" || t.event_completed === 0 || t.event_completed === false);
+        if (upcoming) setSelectedTournament(upcoming.event_name);
+        else if (data.schedule.length > 0) setSelectedTournament(data.schedule[0].event_name);
       }
     });
 
@@ -82,6 +123,7 @@ export default function Home() {
   }, []);
 
   const handleWeightChange = (stat: keyof typeof weights, newValue: number) => {
+    setActiveWeightSlot(-1); // Switch to custom if editing a slot
     const currentWeight = weights[stat];
     const weightDifference = newValue - currentWeight;
     
@@ -92,6 +134,40 @@ export default function Home() {
     
     setWeights(prev => ({ ...prev, [stat]: newValue }));
     setLineups([]);
+    setActiveLineupSlot(-1);
+  };
+
+  const saveWeightSlot = (index: number) => {
+    const slotName = prompt('Enter a name for this model configuration:', weightSlots[index].name !== 'Empty Slot' ? weightSlots[index].name : `Model Slot ${index + 1}`);
+    if (!slotName) return;
+    const newSlots = [...weightSlots];
+    newSlots[index] = { name: slotName, data: weights };
+    setWeightSlots(newSlots);
+    setActiveWeightSlot(index);
+  };
+
+  const loadWeightSlot = (index: number) => {
+    if (!weightSlots[index].data) return;
+    setWeights(weightSlots[index].data);
+    setActiveWeightSlot(index);
+    setLineups([]);
+    setActiveLineupSlot(-1);
+  };
+  
+  const saveLineupSlot = (index: number) => {
+    if (lineups.length === 0) return alert('No active lineups to save!');
+    const slotName = prompt('Enter a name for these lineups:', lineupSlots[index].name !== 'Empty Slot' ? lineupSlots[index].name : `Lineups Slot ${index + 1}`);
+    if (!slotName) return;
+    const newSlots = [...lineupSlots];
+    newSlots[index] = { name: slotName, data: lineups };
+    setLineupSlots(newSlots);
+    setActiveLineupSlot(index);
+  };
+
+  const loadLineupSlot = (index: number) => {
+    if (!lineupSlots[index].data) return;
+    setLineups(lineupSlots[index].data);
+    setActiveLineupSlot(index);
   };
 
   const estimateTokenCost = () => {
@@ -101,7 +177,7 @@ export default function Home() {
   };
 
   const aiAutoWeight = async () => {
-    setLineups([]);
+    setLineups([]); setActiveLineupSlot(-1); setActiveWeightSlot(-1);
     setIsAiLoading(true); setGptReasoning('');
     try {
       const res = await fetch('/api/ai/course-fit', {
@@ -120,7 +196,7 @@ export default function Home() {
   const getActiveStats = (p: GolferStats): SGStats => p[`stats${roundsFilter}` as keyof GolferStats] as SGStats || p.stats32 || {};
 
   const getModelScore = (p: GolferStats) => {
-    let score = 0; // Pure custom model decoupled from DG Base
+    let score = 0; 
     const stats = getActiveStats(p);
     if (!stats || Object.keys(stats).length === 0) return score;
     
@@ -158,12 +234,12 @@ export default function Home() {
 
   const getValueScore = (p: GolferStats) => {
     if (!p.salary) return 0;
-    return (getModelScore(p) / p.salary) * 10000;
+    return getModelScore(p) / (p.salary / 1000);
   };
   
   const getDgValue = (p: GolferStats) => {
     if (!p.salary) return 0;
-    return (p.projection / p.salary) * 10000;
+    return p.projection / (p.salary / 1000);
   };
 
   const getAvgScore = (p: GolferStats) => {
@@ -190,6 +266,7 @@ export default function Home() {
       minSalary, maxSalary, numLineups, maxExposure, minUniques
     });
     setLineups(optimized);
+    setActiveLineupSlot(-1);
   };
 
   const exportDraftKingsCSV = () => {
@@ -260,22 +337,52 @@ export default function Home() {
       <header style={{ padding: '16px 24px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>SKRODERUP <span style={{ color: '#22c55e' }}>Custom Model</span></h1>
-          <select style={{ background: '#222', color: '#22c55e', padding: '6px 12px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }} value={roundsFilter} onChange={e => { setRoundsFilter(e.target.value as any); setLineups([]); }}>
+          <select style={{ background: '#222', color: '#22c55e', padding: '6px 12px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }} value={roundsFilter} onChange={e => { setRoundsFilter(e.target.value as any); setLineups([]); setActiveLineupSlot(-1); }}>
             <option value="16">L16 Rounds</option><option value="32">L32 Rounds</option><option value="64">L64 Rounds</option>
           </select>
         </div>
         
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <select style={{ background: '#222', color: '#fff', padding: '8px 16px', border: '1px solid #444', borderRadius: '4px', maxWidth: '300px' }} value={selectedTournament} onChange={e => { setSelectedTournament(e.target.value); setLineups([]); }}>
+          <select style={{ background: '#222', color: '#fff', padding: '8px 16px', border: '1px solid #444', borderRadius: '4px', maxWidth: '300px' }} value={selectedTournament} onChange={e => { setSelectedTournament(e.target.value); setLineups([]); setActiveLineupSlot(-1); }}>
             {tournaments.length > 0 ? tournaments.map((t, idx) => <option key={idx} value={t.event_name}>{t.event_name}</option>) : <option>Loading schedule...</option>}
           </select>
         </div>
       </header>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <aside style={{ width: '360px', background: '#111', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
+        <aside style={{ width: '380px', background: '#111', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
+          
           <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-            
+            {/* Model Save Slots UI */}
+            <div style={{ marginBottom: '24px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333', overflow: 'hidden' }}>
+              <div style={{ background: '#222', padding: '10px 16px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Model Weights</strong>
+              </div>
+              <div style={{ padding: '12px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                  {weightSlots.map((slot, i) => (
+                    <button key={i} onClick={() => loadWeightSlot(i)} disabled={!slot.data}
+                      style={{ flex: '1 1 18%', padding: '4px', fontSize: '0.7rem', background: activeWeightSlot === i ? '#22c55e' : (slot.data ? '#333' : '#111'), color: activeWeightSlot === i ? '#000' : (slot.data ? '#fff' : '#444'), border: '1px solid #444', borderRadius: '4px', cursor: slot.data ? 'pointer' : 'default', fontWeight: activeWeightSlot === i ? 'bold' : 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                      title={slot.name}>
+                      {slot.data ? (i+1) : '-'}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => saveWeightSlot(activeWeightSlot >= 0 ? activeWeightSlot : weightSlots.findIndex(s => !s.data) >= 0 ? weightSlots.findIndex(s => !s.data) : 0)} 
+                    style={{ flex: 1, background: '#3b82f6', color: '#fff', padding: '6px', border: 'none', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}>
+                    Save to Slot {activeWeightSlot >= 0 ? activeWeightSlot + 1 : ''}
+                  </button>
+                  {activeWeightSlot >= 0 && (
+                    <button onClick={() => setActiveWeightSlot(-1)} style={{ padding: '6px 12px', background: '#333', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer' }}>New</button>
+                  )}
+                </div>
+                {activeWeightSlot >= 0 && (
+                   <div style={{ textAlign: 'center', fontSize: '0.75rem', color: '#888', marginTop: '8px' }}>Active: <span style={{ color: '#22c55e' }}>{weightSlots[activeWeightSlot]?.name}</span></div>
+                )}
+              </div>
+            </div>
+
             <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <h3 style={{ fontSize: '0.9rem', color: '#3b82f6', margin: 0 }}>AI Course Adjust</h3>
@@ -292,7 +399,7 @@ export default function Home() {
 
             <div style={{ position: 'sticky', top: '-20px', background: '#111', zIndex: 5, paddingBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
-                <h3 style={{ fontSize: '0.9rem', textTransform: 'uppercase', color: '#888', margin: 0 }}>Model Weights</h3>
+                <h3 style={{ fontSize: '0.9rem', textTransform: 'uppercase', color: '#888', margin: 0 }}>Weights</h3>
                 <span style={{ fontSize: '0.8rem', color: totalWeight === 100 ? '#22c55e' : '#eab308', fontWeight: 'bold' }}>{totalWeight} / 100%</span>
               </div>
               <div style={{ width: '100%', height: '8px', background: '#333', borderRadius: '4px', overflow: 'hidden' }}>
@@ -354,7 +461,7 @@ export default function Home() {
           <div style={{ padding: '20px', background: '#000', borderTop: '1px solid #333' }}>
             <div style={{ marginBottom: '12px' }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Optimize Target</label>
-              <select value={optTarget} onChange={e => { setOptTarget(e.target.value as any); setLineups([]); }} style={{ width: '100%', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px' }}>
+              <select value={optTarget} onChange={e => { setOptTarget(e.target.value as any); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px' }}>
                 <option value="custom">Custom Model Score</option>
                 <option value="avg">Blended Average Score</option>
                 <option value="dg">DataGolf Baseline Score</option>
@@ -363,7 +470,7 @@ export default function Home() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
               <label style={{ fontSize: '0.8rem', color: '#aaa' }}>Lineups to Build</label>
-              <select value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); setLineups([]); }} style={{ background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '2px 6px' }}>
+              <select value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); setLineups([]); setActiveLineupSlot(-1); }} style={{ background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '2px 6px' }}>
                 <option value="1">1 (Single Entry)</option>
                 <option value="3">3 Max</option>
                 <option value="20">20 Max</option>
@@ -373,10 +480,10 @@ export default function Home() {
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Max Exposure %</label><input type="number" min="5" max="100" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); setLineups([]); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Uniques</label><input type="number" min="1" max="5" value={minUniques} onChange={e => { setMinUniques(Number(e.target.value)); setLineups([]); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label><input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); setLineups([]); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Max Salary</label><input type="number" value={maxSalary} onChange={e => { setMaxSalary(Number(e.target.value)); setLineups([]); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Max Exposure %</label><input type="number" min="5" max="100" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Uniques</label><input type="number" min="1" max="5" value={minUniques} onChange={e => { setMinUniques(Number(e.target.value)); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label><input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Max Salary</label><input type="number" value={maxSalary} onChange={e => { setMaxSalary(Number(e.target.value)); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
             </div>
             
             <button onClick={generateLineups} disabled={isDataLoading} style={{ width: '100%', background: '#22c55e', color: '#000', padding: '16px', border: 'none', borderRadius: '4px', fontSize: '1rem', fontWeight: 'bold', cursor: isDataLoading ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>
@@ -393,13 +500,37 @@ export default function Home() {
              <div style={{ color: '#ef4444', fontSize: '1.2rem', padding: '40px', textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid #ef4444' }}>{dataError}</div>
           ) : (
             <>
+              {/* Lineup Save Slots UI */}
+              <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+                <span style={{ color: '#888', fontSize: '0.8rem', padding: '6px 8px 0 0' }}>Saved Sets:</span>
+                {lineupSlots.map((slot, i) => (
+                  <button key={i} onClick={() => loadLineupSlot(i)} disabled={!slot.data}
+                    style={{ flex: '0 0 auto', padding: '6px 12px', fontSize: '0.8rem', background: activeLineupSlot === i ? '#a855f7' : (slot.data ? '#333' : '#111'), color: activeLineupSlot === i ? '#fff' : (slot.data ? '#fff' : '#444'), border: '1px solid #444', borderRadius: '20px', cursor: slot.data ? 'pointer' : 'default', fontWeight: activeLineupSlot === i ? 'bold' : 'normal', minWidth: '40px' }}
+                    title={slot.name}>
+                    {slot.data ? slot.name : '-'}
+                  </button>
+                ))}
+              </div>
+
               {lineups.length > 0 && (
                 <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3 style={{ color: '#22c55e', margin: 0 }}>{lineups.length} Lineups Generated ({optTarget === 'custom' ? 'Custom' : optTarget === 'dg' ? 'DataGolf' : 'Blended'} Target)</h3>
-                    <button onClick={exportDraftKingsCSV} style={{ background: '#3b82f6', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                      Export to DraftKings CSV
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <h3 style={{ color: '#22c55e', margin: 0 }}>
+                        {activeLineupSlot >= 0 ? `[${lineupSlots[activeLineupSlot]?.name}] ` : ''}
+                        {lineups.length} Lineups
+                      </h3>
+                      <button onClick={() => { setLineups([]); setActiveLineupSlot(-1); }} style={{ background: '#ef4444', color: '#fff', padding: '4px 8px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}>✕ Close</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => saveLineupSlot(activeLineupSlot >= 0 ? activeLineupSlot : lineupSlots.findIndex(s => !s.data) >= 0 ? lineupSlots.findIndex(s => !s.data) : 0)} 
+                        style={{ background: '#a855f7', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        Save Set
+                      </button>
+                      <button onClick={exportDraftKingsCSV} style={{ background: '#3b82f6', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        Export CSV
+                      </button>
+                    </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px', maxHeight: '400px', overflowY: 'auto', paddingRight: '8px' }}>
                     {lineups.map((l, i) => (
@@ -418,7 +549,6 @@ export default function Home() {
               <div style={{ overflowX: 'auto', background: '#111', border: '1px solid #333', borderRadius: '8px' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                   <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-                    {/* Master Group Headers */}
                     <tr style={{ background: '#0a0a0a' }}>
                       <th colSpan={2} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#888' }}>INFO</th>
                       <th colSpan={3} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#22c55e' }}>CUSTOM MODEL</th>
@@ -430,46 +560,37 @@ export default function Home() {
                       <th colSpan={5} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#f97316' }}>BALL STRIKING</th>
                       <th colSpan={3} style={{ padding: '8px', textAlign: 'center', color: '#a855f7' }}>PUTTING SPLITS</th>
                     </tr>
-                    {/* Column Headers */}
                     <tr style={{ background: '#1a1a1a', borderBottom: '2px solid #333' }}>
                       {renderSortHeader('Golfer', 'name')}
                       <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('salary')}>Salary {sortField === 'salary' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
                       
-                      {/* Custom Group */}
                       {renderSortHeader('Score', 'modelScore')}
                       {renderSortHeader('Value', 'valueScore')}
                       <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('delta')}>Δ {sortField === 'delta' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
 
-                      {/* DataGolf Group */}
                       {renderSortHeader('DG Score', 'dgBaseline')}
                       <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('dgValue')}>DG Value {sortField === 'dgValue' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
 
-                      {/* Blended Group */}
                       {renderSortHeader('Avg Score', 'avgScore')}
                       <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('avgValue')}>Avg Value {sortField === 'avgValue' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
 
-                      
-                      {/* SG Group */}
                       {renderSortHeader('OTT', 'sgOTT')}
                       {renderSortHeader('APP', 'sgAPP')}
                       {renderSortHeader('ARG', 'sgARG')}
                       {renderSortHeader('PUTT', 'sgPUTT')}
                       <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('sgTotal')}>Total {sortField === 'sgTotal' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
 
-                      {/* Scoring Group */}
                       {renderSortHeader('RoundScore', 'round_score')}
                       {renderSortHeader('BOB', 'bob')}
                       {renderSortHeader('BA', 'ba')}
                       <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('bogies')}>Bogies {sortField === 'bogies' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
 
-                      {/* Ball Striking Group */}
                       {renderSortHeader('Dist', 'driving_dist')}
                       {renderSortHeader('Acc', 'driving_acc')}
                       {renderSortHeader('GIR', 'gir')}
                       {renderSortHeader('Prox FW', 'prox_fw')}
                       <th style={{ borderRight: '2px solid #333', padding: '10px 8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('prox_rgh')}>Prox RGH {sortField === 'prox_rgh' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
 
-                      {/* Putting Group */}
                       {renderSortHeader('Bermuda', 'putt_bermuda')}
                       {renderSortHeader('Bent', 'putt_bentgrass')}
                       {renderSortHeader('Poa', 'putt_poa')}
@@ -491,21 +612,17 @@ export default function Home() {
                           <td style={{ padding: '10px 8px', fontWeight: 'bold', borderRight: '1px solid #333' }}>{p.name}</td>
                           <td style={{ padding: '10px 8px', borderRight: '2px solid #333' }}>${p.salary}</td>
                           
-                          {/* Custom */}
                           <td style={{ padding: '10px 8px', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem', borderRight: '1px solid #333' }}>{modelScore.toFixed(2)}</td>
-                          <td style={{ padding: '10px 8px', color: '#22c55e', borderRight: '1px solid #333' }}>{valueScore.toFixed(1)}</td>
+                          <td style={{ padding: '10px 8px', color: '#22c55e', borderRight: '1px solid #333' }}>{valueScore.toFixed(2)}</td>
                           <td style={{ padding: '10px 8px', borderRight: '2px solid #333', fontWeight: 'bold', color: delta > 0 ? '#22c55e' : delta < 0 ? '#ef4444' : '#aaa' }}>
                             {delta > 0 ? '+' : ''}{delta.toFixed(2)}
                           </td>
                           
-                          {/* DataGolf */}
                           <td style={{ padding: '10px 8px', color: '#3b82f6', fontWeight: 'bold', borderRight: '1px solid #333' }}>{dgScore.toFixed(2)}</td>
-                          <td style={{ padding: '10px 8px', color: '#3b82f6', borderRight: '2px solid #333' }}>{dgValue.toFixed(1)}</td>
+                          <td style={{ padding: '10px 8px', color: '#3b82f6', borderRight: '2px solid #333' }}>{dgValue.toFixed(2)}</td>
                           
-                          {/* Blended Avg */}
                           <td style={{ padding: '10px 8px', color: '#eab308', fontWeight: 'bold', borderRight: '1px solid #333' }}>{avgScore.toFixed(2)}</td>
-                          <td style={{ padding: '10px 8px', color: '#eab308', borderRight: '2px solid #333' }}>{avgValue.toFixed(1)}</td>
-                          
+                          <td style={{ padding: '10px 8px', color: '#eab308', borderRight: '2px solid #333' }}>{avgValue.toFixed(2)}</td>
                           
                           <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgOTT||0).toFixed(2)}</td>
                           <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgAPP||0).toFixed(2)}</td>
