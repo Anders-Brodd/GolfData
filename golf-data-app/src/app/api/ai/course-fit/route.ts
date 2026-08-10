@@ -18,18 +18,32 @@ export async function POST(req: Request) {
       - sgAPP (Strokes Gained: Approach)
       - sgARG (Strokes Gained: Around the Green)
       - sgPUTT (Strokes Gained: Putting)
+      - sgT2G (Strokes Gained: Tee to Green)
+      - sgTotal (Strokes Gained: Total)
       - distance (Driving Distance)
       - accuracy (Driving Accuracy)
+      - bermuda (Bermuda grass skill)
+      - bentgrass (Bentgrass skill)
+      - poa (Poa annua skill)
+      - wind (High wind skill)
       
-      Return ONLY a raw JSON object with these keys and integer percentage values (0-100) that sum to 100.
+      Return ONLY a raw JSON object with these keys and integer percentage values (0-100) that sum to exactly 100.
+      For example, if the course is heavily Bermuda grass, you should give 'bermuda' a higher percentage, and 0 to bentgrass and poa.
+      
       Example format:
       {
-        "sgOTT": 20,
-        "sgAPP": 30,
-        "sgARG": 15,
-        "sgPUTT": 15,
+        "sgOTT": 10,
+        "sgAPP": 20,
+        "sgARG": 5,
+        "sgPUTT": 10,
+        "sgT2G": 10,
+        "sgTotal": 5,
         "distance": 10,
-        "accuracy": 10
+        "accuracy": 10,
+        "bermuda": 15,
+        "bentgrass": 0,
+        "poa": 0,
+        "wind": 5
       }
     `;
 

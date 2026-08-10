@@ -7,14 +7,22 @@ interface GolferStats extends PlayerData {
   sgAPP: number;
   sgARG: number;
   sgPUTT: number;
+  sgT2G: number;
+  sgTotal: number;
   distance: number;
   accuracy: number;
+  bermuda: number;
+  bentgrass: number;
+  poa: number;
+  wind: number;
 }
 
 export default function Home() {
-  const [tournament, setTournament] = useState('Masters Tournament');
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [selectedTournament, setSelectedTournament] = useState('Masters Tournament');
   const [players, setPlayers] = useState<GolferStats[]>([]);
   const [lineups, setLineups] = useState<Lineup[]>([]);
+  
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -24,18 +32,35 @@ export default function Home() {
   const [betEntry, setBetEntry] = useState(20);
   const [prizePool, setPrizePool] = useState(100000);
   
-  // Pruned Global Stat Weights (percentage 0-100)
   const [weights, setWeights] = useState({
-    sgOTT: 20,
-    sgAPP: 30,
-    sgARG: 10,
-    sgPUTT: 20,
-    distance: 10,
-    accuracy: 10
+    sgOTT: 10,
+    sgAPP: 20,
+    sgARG: 5,
+    sgPUTT: 10,
+    sgT2G: 10,
+    sgTotal: 10,
+    distance: 5,
+    accuracy: 5,
+    bermuda: 5,
+    bentgrass: 5,
+    poa: 5,
+    wind: 10
   });
 
-  // Fetch Live Data from Backblaze / DataGolf on Load
   useEffect(() => {
+    // Fetch Schedule
+    fetch('/api/tournaments')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.schedule) {
+          setTournaments(data.schedule);
+          if (data.schedule.length > 0) {
+            setSelectedTournament(data.schedule[0].event_name);
+          }
+        }
+      });
+
+    // Fetch Players
     const fetchLivePlayers = async () => {
       try {
         const res = await fetch('/api/players');
@@ -44,11 +69,9 @@ export default function Home() {
           setPlayers(data.players);
           setDataError(null);
         } else {
-          console.error('Failed to load players:', data.error);
           setDataError(data.error || 'No players found. DataGolf sync may have failed.');
         }
       } catch (err: any) {
-        console.error('Network error loading players:', err);
         setDataError('Network error connecting to API.');
       }
       setIsDataLoading(false);
@@ -66,13 +89,14 @@ export default function Home() {
       const res = await fetch('/api/ai/course-fit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournament })
+        body: JSON.stringify({ tournament: selectedTournament })
       });
       const data = await res.json();
       
       if (data.success && data.weights) {
-        setWeights(data.weights);
-        alert(`GPT Successfully Analyzed ${tournament}! Weights updated.`);
+        // Merge GPT weights (some might be missing so fallback to current)
+        setWeights(prev => ({ ...prev, ...data.weights }));
+        alert(`GPT Successfully Analyzed ${selectedTournament}! Weights updated.`);
       } else {
         alert('GPT Analysis failed: ' + (data.error || 'Unknown error'));
       }
@@ -88,8 +112,15 @@ export default function Home() {
     score += (p.sgAPP * (weights.sgAPP / 10));
     score += (p.sgARG * (weights.sgARG / 10));
     score += (p.sgPUTT * (weights.sgPUTT / 10));
+    score += (p.sgT2G * (weights.sgT2G / 10));
+    score += (p.sgTotal * (weights.sgTotal / 10));
     score += (p.distance * (weights.distance / 100));
     score += (p.accuracy * (weights.accuracy / 100));
+    // GPT stats are 1-100, we divide by 10 to keep it in a similar range to SG
+    score += (p.bermuda * (weights.bermuda / 1000));
+    score += (p.bentgrass * (weights.bentgrass / 1000));
+    score += (p.poa * (weights.poa / 1000));
+    score += (p.wind * (weights.wind / 1000));
     return score;
   };
 
@@ -109,17 +140,22 @@ export default function Home() {
   return (
     <main style={{ padding: '0', height: '100vh', display: 'flex', flexDirection: 'column', background: '#0a0a0a', color: '#fff', fontFamily: 'sans-serif' }}>
       
-      {/* Top Navigation Bar */}
       <header style={{ padding: '16px 24px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>SKRODERUP <span style={{ color: '#22c55e' }}>Custom Model</span></h1>
         
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <select style={{ background: '#222', color: '#fff', padding: '8px 16px', border: '1px solid #444', borderRadius: '4px' }} value={tournament} onChange={e => setTournament(e.target.value)}>
-            <option>Masters Tournament</option>
-            <option>PGA Championship</option>
-            <option>US Open</option>
-            <option>The Players Championship</option>
-            <option>Arnold Palmer Invitational</option>
+          <select 
+            style={{ background: '#222', color: '#fff', padding: '8px 16px', border: '1px solid #444', borderRadius: '4px', maxWidth: '300px' }} 
+            value={selectedTournament} 
+            onChange={e => setSelectedTournament(e.target.value)}
+          >
+            {tournaments.length > 0 ? (
+              tournaments.map((t, idx) => (
+                <option key={idx} value={t.event_name}>{t.event_name} ({t.status})</option>
+              ))
+            ) : (
+              <option>Loading schedule...</option>
+            )}
           </select>
           <button onClick={aiAutoWeight} disabled={isAiLoading || isDataLoading} style={{ background: '#3b82f6', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: isAiLoading ? 'wait' : 'pointer', fontWeight: 'bold' }}>
             {isAiLoading ? '?? Analyzing Course...' : '?? GPT Course Adjust'}
@@ -129,15 +165,13 @@ export default function Home() {
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
-        {/* Left Sidebar: Stat Weights */}
-        <aside style={{ width: '320px', background: '#111', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
+        <aside style={{ width: '340px', background: '#111', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
             <h3 style={{ marginBottom: '20px', fontSize: '0.9rem', textTransform: 'uppercase', color: '#888' }}>Model Weights (%)</h3>
             
-            {/* Stat Input Group */}
             {Object.entries(weights).map(([stat, weight]) => (
-              <div key={stat} style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem' }}>
+              <div key={stat} style={{ marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.8rem' }}>
                   <span>{stat.toUpperCase()}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -146,9 +180,9 @@ export default function Home() {
                     min="0" max="100" 
                     value={weight} 
                     onChange={(e) => handleWeightChange(stat as keyof typeof weights, Number(e.target.value))}
-                    style={{ flex: 1, background: '#222', color: '#22c55e', padding: '8px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }}
+                    style={{ flex: 1, background: '#222', color: '#22c55e', padding: '6px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }}
                   />
-                  <span style={{ color: '#888' }}>%</span>
+                  <span style={{ color: '#888', fontSize: '0.9rem' }}>%</span>
                 </div>
               </div>
             ))}
@@ -181,7 +215,6 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* Main Content: Massive Data Grid */}
         <section style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
           
           {isDataLoading ? (
@@ -234,41 +267,41 @@ export default function Home() {
                 </div>
               )}
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                <thead>
-                  <tr style={{ background: '#1a1a1a', borderBottom: '2px solid #333' }}>
-                    <th style={{ padding: '12px 8px', color: '#888' }}>Golfer</th>
-                    <th style={{ padding: '12px 8px', color: '#888' }}>Salary</th>
-                    <th style={{ padding: '12px 8px', color: '#22c55e' }}>Model Score</th>
-                    <th style={{ padding: '12px 8px', color: '#888' }}>Base Proj</th>
-                    <th style={{ padding: '12px 8px', color: '#888' }}>SG:OTT</th>
-                    <th style={{ padding: '12px 8px', color: '#888' }}>SG:APP</th>
-                    <th style={{ padding: '12px 8px', color: '#888' }}>SG:ARG</th>
-                    <th style={{ padding: '12px 8px', color: '#888' }}>SG:PUTT</th>
-                    <th style={{ padding: '12px 8px', color: '#888' }}>Distance</th>
-                    <th style={{ padding: '12px 8px', color: '#888' }}>Accuracy</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {players.map(p => {
-                    const modelScore = getModelScore(p);
-                    return (
-                      <tr key={p.id} style={{ borderBottom: '1px solid #222' }}>
-                        <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{p.name}</td>
-                        <td style={{ padding: '12px 8px' }}>${p.salary}</td>
-                        <td style={{ padding: '12px 8px', color: '#22c55e', fontWeight: 'bold', fontSize: '1rem' }}>{modelScore.toFixed(2)}</td>
-                        <td style={{ padding: '12px 8px', color: '#aaa' }}>{p.projection}</td>
-                        <td style={{ padding: '12px 8px', color: p.sgOTT > 1 ? '#22c55e' : '#fff' }}>{p.sgOTT}</td>
-                        <td style={{ padding: '12px 8px', color: p.sgAPP > 1 ? '#22c55e' : '#fff' }}>{p.sgAPP}</td>
-                        <td style={{ padding: '12px 8px', color: p.sgARG > 0.5 ? '#22c55e' : p.sgARG < 0 ? '#ef4444' : '#fff' }}>{p.sgARG}</td>
-                        <td style={{ padding: '12px 8px' }}>{p.sgPUTT}</td>
-                        <td style={{ padding: '12px 8px' }}>{p.distance}</td>
-                        <td style={{ padding: '12px 8px' }}>{p.accuracy}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                  <thead>
+                    <tr style={{ background: '#1a1a1a', borderBottom: '2px solid #333' }}>
+                      <th style={{ padding: '8px', color: '#888' }}>Golfer</th>
+                      <th style={{ padding: '8px', color: '#888' }}>Salary</th>
+                      <th style={{ padding: '8px', color: '#22c55e' }}>Model Score</th>
+                      <th style={{ padding: '8px', color: '#888' }}>SG:T2G</th>
+                      <th style={{ padding: '8px', color: '#888' }}>SG:Tot</th>
+                      <th style={{ padding: '8px', color: '#888' }}>Bermuda</th>
+                      <th style={{ padding: '8px', color: '#888' }}>Bent</th>
+                      <th style={{ padding: '8px', color: '#888' }}>Poa</th>
+                      <th style={{ padding: '8px', color: '#888' }}>Wind</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {players.map(p => {
+                      const modelScore = getModelScore(p);
+                      return (
+                        <tr key={p.id} style={{ borderBottom: '1px solid #222' }}>
+                          <td style={{ padding: '8px', fontWeight: 'bold' }}>{p.name}</td>
+                          <td style={{ padding: '8px' }}>${p.salary}</td>
+                          <td style={{ padding: '8px', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem' }}>{modelScore.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{p.sgT2G.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{p.sgTotal.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{p.bermuda}</td>
+                          <td style={{ padding: '8px' }}>{p.bentgrass}</td>
+                          <td style={{ padding: '8px' }}>{p.poa}</td>
+                          <td style={{ padding: '8px' }}>{p.wind}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 
