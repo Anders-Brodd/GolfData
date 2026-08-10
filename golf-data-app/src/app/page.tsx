@@ -18,11 +18,6 @@ interface GolferStats extends PlayerData {
   wind: number;
 }
 
-interface SaveSlot<T> {
-  name: string;
-  data: T;
-}
-
 const DEFAULT_WEIGHTS = {
   sgOTT: 5, sgAPP: 10, sgARG: 5, sgPUTT: 5, sgT2G: 10, sgTotal: 5, sgBS: 5,
   eagles_or_better: 0, birdies: 5, pars: 0, doubles_or_worse: 0, bob: 5, ba: 5,
@@ -34,7 +29,6 @@ export default function Home() {
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [selectedTournament, setSelectedTournament] = useState('');
   const [players, setPlayers] = useState<GolferStats[]>([]);
-  const [lineups, setLineups] = useState<Lineup[]>([]);
   
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -59,40 +53,49 @@ export default function Home() {
   const [gptReasoning, setGptReasoning] = useState('');
   const [gptModel, setGptModel] = useState('gpt-4o-mini');
 
-  const [weights, setWeights] = useState(DEFAULT_WEIGHTS);
-  const totalWeight = Object.values(weights).reduce((sum, val) => sum + val, 0);
-
-  // --- SAVE SLOTS STATE ---
-  const [weightSlots, setWeightSlots] = useState<SaveSlot<typeof DEFAULT_WEIGHTS>[]>(Array(10).fill({ name: 'Empty Slot', data: null }));
-  const [activeWeightSlot, setActiveWeightSlot] = useState<number>(-1);
-  const [lineupSlots, setLineupSlots] = useState<SaveSlot<Lineup[]>[]>(Array(10).fill({ name: 'Empty Slot', data: null }));
-  const [activeLineupSlot, setActiveLineupSlot] = useState<number>(-1);
+  // --- UNIFIED TABS STATE ---
+  const [tabs, setTabs] = useState<{name: string, weights: typeof DEFAULT_WEIGHTS, lineups: Lineup[]}[]>(Array(10).fill({ name: 'Tab', weights: DEFAULT_WEIGHTS, lineups: [] }).map((t,i) => ({...t, name: `Tab ${i+1}`})));
+  const [activeTabIdx, setActiveTabIdx] = useState<number>(0);
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, { bump?: number, exposure?: number, exclude?: boolean }>>({});
   
+  // Is Client side ready
+  const [isClient, setIsClient] = useState(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedWeights = localStorage.getItem('skroderup_active_weights');
-      if (savedWeights) setWeights(JSON.parse(savedWeights));
-      const savedLineups = localStorage.getItem('skroderup_active_lineups');
-      if (savedLineups) setLineups(JSON.parse(savedLineups));
-      const wSlots = localStorage.getItem('skroderup_weight_slots');
-      if (wSlots) setWeightSlots(JSON.parse(wSlots));
-      const lSlots = localStorage.getItem('skroderup_lineup_slots');
-      if (lSlots) setLineupSlots(JSON.parse(lSlots));
+      const storedTabs = localStorage.getItem('skroderup_tabs');
+      if (storedTabs) {
+         try {
+           const parsed = JSON.parse(storedTabs);
+           setTabs(parsed.map((t: any, i: number) => ({
+              name: t.name || `Tab ${i+1}`,
+              weights: { ...DEFAULT_WEIGHTS, ...(t.weights||{}) },
+              lineups: t.lineups || []
+           })));
+         } catch (e) {}
+      }
+      const storedActive = localStorage.getItem('skroderup_active_tab');
+      if (storedActive) setActiveTabIdx(Number(storedActive));
+
       const pOverrides = localStorage.getItem('skroderup_player_overrides');
-      if (pOverrides) setPlayerOverrides(JSON.parse(pOverrides));
+      if (pOverrides) {
+        try { setPlayerOverrides(JSON.parse(pOverrides)); } catch(e){}
+      }
+      setIsClient(true);
     }
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('skroderup_active_weights', JSON.stringify(weights));
-      localStorage.setItem('skroderup_active_lineups', JSON.stringify(lineups));
-      localStorage.setItem('skroderup_weight_slots', JSON.stringify(weightSlots));
-      localStorage.setItem('skroderup_lineup_slots', JSON.stringify(lineupSlots));
+    if (isClient && typeof window !== 'undefined') {
+      localStorage.setItem('skroderup_tabs', JSON.stringify(tabs));
+      localStorage.setItem('skroderup_active_tab', activeTabIdx.toString());
       localStorage.setItem('skroderup_player_overrides', JSON.stringify(playerOverrides));
     }
-  }, [weights, lineups, weightSlots, lineupSlots, playerOverrides]);
+  }, [tabs, activeTabIdx, playerOverrides, isClient]);
+
+  const weights = tabs[activeTabIdx]?.weights || DEFAULT_WEIGHTS;
+  const lineups = tabs[activeTabIdx]?.lineups || [];
+  const totalWeight = Object.values(weights).reduce((sum, val) => sum + val, 0);
 
   useEffect(() => {
     fetch('/api/tournaments').then(res => res.json()).then(data => {
@@ -122,15 +125,27 @@ export default function Home() {
     fetchLivePlayers();
   }, []);
 
+  const clearLineups = () => {
+    setTabs(prev => {
+      const nt = [...prev];
+      nt[activeTabIdx] = { ...nt[activeTabIdx], lineups: [] };
+      return nt;
+    });
+  };
+
   const handleWeightChange = (stat: keyof typeof weights, newValue: number) => {
-    setActiveWeightSlot(-1);
-    const currentWeight = weights[stat];
+    const currentWeight = weights[stat] || 0;
     const weightDifference = newValue - currentWeight;
+    let clampedValue = newValue;
     if (totalWeight + weightDifference > 100) {
-      newValue = currentWeight + (100 - totalWeight);
+      clampedValue = currentWeight + (100 - totalWeight);
     }
-    setWeights(prev => ({ ...prev, [stat]: newValue }));
-    setLineups([]); setActiveLineupSlot(-1);
+    
+    setTabs(prev => {
+      const nt = [...prev];
+      nt[activeTabIdx] = { ...nt[activeTabIdx], weights: { ...nt[activeTabIdx].weights, [stat]: clampedValue }, lineups: [] };
+      return nt;
+    });
   };
 
   const handleOverride = (id: string, field: 'bump'|'exposure'|'exclude', value: any) => {
@@ -140,7 +155,17 @@ export default function Home() {
       (overrides[id] as any)[field] = value;
       return overrides;
     });
-    setLineups([]); setActiveLineupSlot(-1);
+    clearLineups();
+  };
+
+  const renameTab = (index: number) => {
+    const slotName = prompt('Enter a name for this configuration tab:', tabs[index].name);
+    if (!slotName) return;
+    setTabs(prev => {
+      const nt = [...prev];
+      nt[index].name = slotName;
+      return nt;
+    });
   };
 
   const getActiveStats = (p: GolferStats): SGStats => p[`stats${roundsFilter}` as keyof GolferStats] as SGStats || p.stats32 || {};
@@ -150,34 +175,34 @@ export default function Home() {
     const stats = getActiveStats(p);
     if (!stats || Object.keys(stats).length === 0) return score;
     
-    score += (Number(stats.sgOTT||0) * (weights.sgOTT / 10));
-    score += (Number(stats.sgAPP||0) * (weights.sgAPP / 10));
-    score += (Number(stats.sgARG||0) * (weights.sgARG / 10));
-    score += (Number(stats.sgPUTT||0) * (weights.sgPUTT / 10));
-    score += (Number(stats.sgT2G||0) * (weights.sgT2G / 10));
-    score += (Number(stats.sgTotal||0) * (weights.sgTotal / 10));
-    score += ((Number(stats.sgOTT||0) + Number(stats.sgAPP||0)) * (weights.sgBS / 10));
+    score += (Number(stats.sgOTT||0) * ((weights.sgOTT||0) / 10));
+    score += (Number(stats.sgAPP||0) * ((weights.sgAPP||0) / 10));
+    score += (Number(stats.sgARG||0) * ((weights.sgARG||0) / 10));
+    score += (Number(stats.sgPUTT||0) * ((weights.sgPUTT||0) / 10));
+    score += (Number(stats.sgT2G||0) * ((weights.sgT2G||0) / 10));
+    score += (Number(stats.sgTotal||0) * ((weights.sgTotal||0) / 10));
+    score += ((Number(stats.sgOTT||0) + Number(stats.sgAPP||0)) * ((weights.sgBS||0) / 10));
     
-    score += (Number(stats.eagles_or_better||0) * (weights.eagles_or_better / 10));
-    score += (Number(stats.birdies||0) * (weights.birdies / 10));
-    score += (Number(stats.pars||0) * (weights.pars / 10));
-    score += (Number(stats.bob||0) * (weights.bob / 10));
-    score -= (Number(stats.doubles_or_worse||0) * (weights.doubles_or_worse / 10));
-    score -= (Number(stats.ba||0) * (weights.ba / 10));
+    score += (Number(stats.eagles_or_better||0) * ((weights.eagles_or_better||0) / 10));
+    score += (Number(stats.birdies||0) * ((weights.birdies||0) / 10));
+    score += (Number(stats.pars||0) * ((weights.pars||0) / 10));
+    score += (Number(stats.bob||0) * ((weights.bob||0) / 10));
+    score -= (Number(stats.doubles_or_worse||0) * ((weights.doubles_or_worse||0) / 10));
+    score -= (Number(stats.ba||0) * ((weights.ba||0) / 10));
 
-    score += (Number(stats.driving_dist||0) * (weights.driving_dist / 100)); 
-    score += (Number(stats.driving_acc||0) * (weights.driving_acc / 10));
-    score += (Number(stats.gir||0) * (weights.gir / 10));
-    score += (Number(stats.scrambling||0) * (weights.scrambling / 10));
-    score += (Number(stats.great_shots||0) * (weights.great_shots / 10));
-    score -= (Number(stats.poor_shots||0) * (weights.poor_shots / 10));
+    score += (Number(stats.driving_dist||0) * ((weights.driving_dist||0) / 100)); 
+    score += (Number(stats.driving_acc||0) * ((weights.driving_acc||0) / 10));
+    score += (Number(stats.gir||0) * ((weights.gir||0) / 10));
+    score += (Number(stats.scrambling||0) * ((weights.scrambling||0) / 10));
+    score += (Number(stats.great_shots||0) * ((weights.great_shots||0) / 10));
+    score -= (Number(stats.poor_shots||0) * ((weights.poor_shots||0) / 10));
     
-    score += (p.putt_bermuda * (weights.putt_bermuda / 1000));
-    score += (p.putt_bentgrass * (weights.putt_bentgrass / 1000));
-    score += (p.putt_poa * (weights.putt_poa / 1000));
-    score += (p.wind * (weights.wind / 1000));
+    score += ((p.putt_bermuda||0) * ((weights.putt_bermuda||0) / 1000));
+    score += ((p.putt_bentgrass||0) * ((weights.putt_bentgrass||0) / 1000));
+    score += ((p.putt_poa||0) * ((weights.putt_poa||0) / 1000));
+    score += ((p.wind||0) * ((weights.wind||0) / 1000));
 
-    return score;
+    return score || 0;
   };
 
   const normalizationStats = useMemo(() => {
@@ -240,7 +265,7 @@ export default function Home() {
       if (fs < fnl.min) fnl.min = fs; if (fs > fnl.max) fnl.max = fs;
     });
     return { sal, cScr, cVal, dScr, dVal, aScr, aVal, fnl };
-  }, [players, weights, roundsFilter, optTarget, playerOverrides]);
+  }, [players, weights, roundsFilter, optTarget, playerOverrides, normalizationStats]);
 
   const getGradient = (val: number, min: number, max: number, type: 'salary'|'score') => {
     if (min === max || !isFinite(min)) return 'transparent';
@@ -254,38 +279,6 @@ export default function Home() {
     }
     return `rgba(${Math.round(r)}, ${Math.round(g)}, 0, 0.4)`;
   }
-
-  const saveWeightSlot = (index: number) => {
-    const slotName = prompt('Enter a name for this model configuration:', weightSlots[index].name !== 'Empty Slot' ? weightSlots[index].name : `Model Slot ${index + 1}`);
-    if (!slotName) return;
-    const newSlots = [...weightSlots];
-    newSlots[index] = { name: slotName, data: weights };
-    setWeightSlots(newSlots);
-    setActiveWeightSlot(index);
-  };
-
-  const loadWeightSlot = (index: number) => {
-    if (!weightSlots[index].data) return;
-    setWeights(weightSlots[index].data);
-    setActiveWeightSlot(index);
-    setLineups([]); setActiveLineupSlot(-1);
-  };
-  
-  const saveLineupSlot = (index: number) => {
-    if (lineups.length === 0) return alert('No active lineups to save!');
-    const slotName = prompt('Enter a name for these lineups:', lineupSlots[index].name !== 'Empty Slot' ? lineupSlots[index].name : `Lineups Slot ${index + 1}`);
-    if (!slotName) return;
-    const newSlots = [...lineupSlots];
-    newSlots[index] = { name: slotName, data: lineups };
-    setLineupSlots(newSlots);
-    setActiveLineupSlot(index);
-  };
-
-  const loadLineupSlot = (index: number) => {
-    if (!lineupSlots[index].data) return;
-    setLineups(lineupSlots[index].data);
-    setActiveLineupSlot(index);
-  };
 
   const estimateTokenCost = () => {
     const tokens = 350 + Math.ceil(gptNotes.length / 4);
@@ -310,7 +303,7 @@ export default function Home() {
   };
 
   const aiAutoWeight = async () => {
-    setLineups([]); setActiveLineupSlot(-1); setActiveWeightSlot(-1);
+    clearLineups();
     setIsAiLoading(true); setGptReasoning('');
     try {
       const res = await fetch('/api/ai/course-fit', {
@@ -328,7 +321,12 @@ export default function Home() {
         }
         let newSum = Object.values(newWeights).reduce((a:any, b:any) => Number(a) + Number(b), 0) as number;
         if (newSum !== 100) newWeights.sgTotal += (100 - newSum); 
-        setWeights(newWeights);
+        
+        setTabs(prev => {
+          const nt = [...prev];
+          nt[activeTabIdx] = { ...nt[activeTabIdx], weights: newWeights, lineups: [] };
+          return nt;
+        });
         setGptReasoning(data.reasoning || 'No reasoning provided by AI.');
       }
     } catch (err) {}
@@ -349,8 +347,11 @@ export default function Home() {
     const optimized = LineupOptimizer.generateTopLineups(mappedPlayers, {
       minSalary, maxSalary, numLineups, maxExposure, minUniques
     });
-    setLineups(optimized);
-    setActiveLineupSlot(-1);
+    setTabs(prev => {
+      const nt = [...prev];
+      nt[activeTabIdx] = { ...nt[activeTabIdx], lineups: optimized };
+      return nt;
+    });
   };
 
   // Sorting
@@ -416,6 +417,13 @@ export default function Home() {
     
     return (
       <tr key={p.id} style={{ borderBottom: '1px solid #222', background: rowBg, opacity }}>
+        <td style={{ padding: '4px', borderRight: '1px solid #333' }}>
+          <input type="number" step="0.5" value={ov.bump || 0} onChange={e => handleOverride(p.id, 'bump', Number(e.target.value))} style={{ width: '50px', background: '#000', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '4px' }} />
+        </td>
+        <td style={{ padding: '4px', borderRight: '2px solid #333' }}>
+          <input type="number" placeholder={String(maxExposure)} value={ov.exposure ?? ''} onChange={e => handleOverride(p.id, 'exposure', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '50px', background: '#000', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '4px' }} />
+        </td>
+
         <td style={{ padding: '10px 8px', fontWeight: 'bold', borderRight: '1px solid #333' }}>{p.name}</td>
         <td style={{ padding: '10px 8px', borderRight: '2px solid #333', background: isExcluded ? 'transparent' : getGradient(p.salary, ranges.sal.min, ranges.sal.max, 'salary'), color: '#fff', textShadow: '0 0 2px #000' }}>${p.salary}</td>
         
@@ -428,16 +436,7 @@ export default function Home() {
         <td style={{ padding: '10px 8px', borderRight: '1px solid #333', background: isExcluded ? 'transparent' : getGradient(as, ranges.aScr.min, ranges.aScr.max, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{as.toFixed(2)}</td>
         <td style={{ padding: '10px 8px', borderRight: '2px solid #333', background: isExcluded ? 'transparent' : getGradient(av, ranges.aVal.min, ranges.aVal.max, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{av.toFixed(2)}</td>
 
-        <td style={{ padding: '4px', borderRight: '1px solid #333' }}>
-          <input type="number" step="0.5" value={ov.bump || 0} onChange={e => handleOverride(p.id, 'bump', Number(e.target.value))} style={{ width: '50px', background: '#000', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '4px' }} />
-        </td>
-        <td style={{ padding: '4px', borderRight: '1px solid #333' }}>
-          <input type="number" placeholder={String(maxExposure)} value={ov.exposure ?? ''} onChange={e => handleOverride(p.id, 'exposure', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '50px', background: '#000', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '4px' }} />
-        </td>
         <td style={{ padding: '10px 8px', borderRight: '2px solid #333', fontWeight: 'bold', background: isExcluded ? 'transparent' : getGradient(fs, ranges.fnl.min, ranges.fnl.max, 'score'), color: '#fff', textShadow: '0 0 2px #000' }}>{fs.toFixed(2)}</td>
-        <td style={{ padding: '10px 8px', borderRight: '2px solid #333', textAlign: 'center' }}>
-          <input type="checkbox" checked={!!ov.exclude} onChange={e => handleOverride(p.id, 'exclude', e.target.checked)} style={{ transform: 'scale(1.5)' }} />
-        </td>
 
         <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgOTT||0).toFixed(2)}</td>
         <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{Number(stats.sgAPP||0).toFixed(2)}</td>
@@ -461,24 +460,46 @@ export default function Home() {
         
         <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{p.putt_bermuda}</td>
         <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{p.putt_bentgrass}</td>
-        <td style={{ padding: '10px 8px', borderRight: '1px solid #333' }}>{p.putt_poa}</td>
+        <td style={{ padding: '10px 8px', borderRight: '2px solid #333' }}>{p.putt_poa}</td>
+
+        <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+          <input type="checkbox" checked={!!ov.exclude} onChange={e => handleOverride(p.id, 'exclude', e.target.checked)} style={{ transform: 'scale(1.5)' }} />
+        </td>
       </tr>
     );
   };
 
+  if (!isClient) return <div style={{ background: '#0a0a0a', height: '100vh', color: '#fff', padding: '40px', textAlign: 'center' }}>Loading...</div>;
+
   return (
     <main style={{ padding: '0', height: '100vh', display: 'flex', flexDirection: 'column', background: '#0a0a0a', color: '#fff', fontFamily: 'sans-serif' }}>
       
+      {/* TABS BAR */}
+      <div style={{ display: 'flex', background: '#111', borderBottom: '1px solid #333', overflowX: 'auto', padding: '0 8px' }}>
+         {tabs.map((tab, idx) => (
+           <div key={idx} 
+             onClick={() => setActiveTabIdx(idx)}
+             onDoubleClick={() => renameTab(idx)}
+             style={{
+               padding: '12px 24px', cursor: 'pointer', borderBottom: activeTabIdx === idx ? '3px solid #22c55e' : '3px solid transparent',
+               background: activeTabIdx === idx ? '#1a1a1a' : 'transparent', color: activeTabIdx === idx ? '#22c55e' : '#888',
+               fontWeight: activeTabIdx === idx ? 'bold' : 'normal', transition: 'all 0.2s', whiteSpace: 'nowrap'
+             }}>
+             {tab.name}
+           </div>
+         ))}
+      </div>
+
       <header style={{ padding: '16px 24px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>SKRODERUP <span style={{ color: '#22c55e' }}>Custom Model</span></h1>
-          <select style={{ background: '#222', color: '#22c55e', padding: '6px 12px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }} value={roundsFilter} onChange={e => { setRoundsFilter(e.target.value as any); setLineups([]); setActiveLineupSlot(-1); }}>
+          <select style={{ background: '#222', color: '#22c55e', padding: '6px 12px', border: '1px solid #444', borderRadius: '4px', fontWeight: 'bold' }} value={roundsFilter} onChange={e => { setRoundsFilter(e.target.value as any); clearLineups(); }}>
             <option value="16">L16 Rounds</option><option value="32">L32 Rounds</option><option value="64">L64 Rounds</option>
           </select>
         </div>
         
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <select style={{ background: '#222', color: '#fff', padding: '8px 16px', border: '1px solid #444', borderRadius: '4px', maxWidth: '300px' }} value={selectedTournament} onChange={e => { setSelectedTournament(e.target.value); setLineups([]); setActiveLineupSlot(-1); }}>
+          <select style={{ background: '#222', color: '#fff', padding: '8px 16px', border: '1px solid #444', borderRadius: '4px', maxWidth: '300px' }} value={selectedTournament} onChange={e => { setSelectedTournament(e.target.value); clearLineups(); }}>
             {tournaments.length > 0 ? tournaments.map((t, idx) => <option key={idx} value={t.event_name}>{t.event_name}</option>) : <option>Loading schedule...</option>}
           </select>
         </div>
@@ -488,32 +509,6 @@ export default function Home() {
         <aside style={{ width: '380px', background: '#111', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
           
           <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-            {/* Model Save Slots UI */}
-            <div style={{ marginBottom: '24px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333', overflow: 'hidden' }}>
-              <div style={{ background: '#222', padding: '10px 16px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Model Weights</strong>
-              </div>
-              <div style={{ padding: '12px' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
-                  {weightSlots.map((slot, i) => (
-                    <button key={i} onClick={() => loadWeightSlot(i)} disabled={!slot.data}
-                      style={{ flex: '1 1 18%', padding: '4px', fontSize: '0.7rem', background: activeWeightSlot === i ? '#22c55e' : (slot.data ? '#333' : '#111'), color: activeWeightSlot === i ? '#000' : (slot.data ? '#fff' : '#444'), border: '1px solid #444', borderRadius: '4px', cursor: slot.data ? 'pointer' : 'default', fontWeight: activeWeightSlot === i ? 'bold' : 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                      title={slot.name}>
-                      {slot.data ? (i+1) : '-'}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => saveWeightSlot(activeWeightSlot >= 0 ? activeWeightSlot : weightSlots.findIndex(s => !s.data) >= 0 ? weightSlots.findIndex(s => !s.data) : 0)} 
-                    style={{ flex: 1, background: '#3b82f6', color: '#fff', padding: '6px', border: 'none', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}>
-                    Save to Slot {activeWeightSlot >= 0 ? activeWeightSlot + 1 : ''}
-                  </button>
-                  {activeWeightSlot >= 0 && (
-                    <button onClick={() => setActiveWeightSlot(-1)} style={{ padding: '6px 12px', background: '#333', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer' }}>New</button>
-                  )}
-                </div>
-              </div>
-            </div>
 
             <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -591,7 +586,7 @@ export default function Home() {
           <div style={{ padding: '20px', background: '#000', borderTop: '1px solid #333' }}>
             <div style={{ marginBottom: '12px' }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Optimize Target</label>
-              <select value={optTarget} onChange={e => { setOptTarget(e.target.value as any); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px' }}>
+              <select value={optTarget} onChange={e => { setOptTarget(e.target.value as any); clearLineups(); }} style={{ width: '100%', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px' }}>
                 <option value="custom">Custom Model Score</option>
                 <option value="avg">Blended Average Score</option>
                 <option value="dg">DataGolf Baseline Score</option>
@@ -599,14 +594,14 @@ export default function Home() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Lineups</label><input type="number" value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Global Exp %</label><input type="number" min="5" max="100" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Uniques</label><input type="number" min="1" max="5" value={minUniques} onChange={e => { setMinUniques(Number(e.target.value)); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
-              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label><input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); setLineups([]); setActiveLineupSlot(-1); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Lineups</label><input type="number" value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); clearLineups(); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Global Exp %</label><input type="number" min="5" max="100" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); clearLineups(); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Uniques</label><input type="number" min="1" max="5" value={minUniques} onChange={e => { setMinUniques(Number(e.target.value)); clearLineups(); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label><input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); clearLineups(); }} style={{ width: '100%', padding: '6px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} /></div>
             </div>
             
             <button onClick={generateLineups} disabled={isDataLoading} style={{ width: '100%', background: '#22c55e', color: '#000', padding: '16px', border: 'none', borderRadius: '4px', fontSize: '1rem', fontWeight: 'bold', cursor: isDataLoading ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>
-              {isDataLoading ? 'LOADING DATA...' : `BUILD ${numLineups} LINEUPS`}
+              {isDataLoading ? 'LOADING DATA...' : `BUILD ${numLineups} LINEUPS IN TAB ${activeTabIdx + 1}`}
             </button>
           </div>
         </aside>
@@ -617,31 +612,16 @@ export default function Home() {
              <div style={{ color: '#22c55e', fontSize: '1.2rem', padding: '40px', textAlign: 'center' }}>Loading live player data...</div>
           ) : (
             <>
-              <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
-                {lineupSlots.map((slot, i) => (
-                  <button key={i} onClick={() => loadLineupSlot(i)} disabled={!slot.data}
-                    style={{ flex: '0 0 auto', padding: '6px 12px', fontSize: '0.8rem', background: activeLineupSlot === i ? '#a855f7' : (slot.data ? '#333' : '#111'), color: activeLineupSlot === i ? '#fff' : (slot.data ? '#fff' : '#444'), border: '1px solid #444', borderRadius: '20px', cursor: slot.data ? 'pointer' : 'default', fontWeight: activeLineupSlot === i ? 'bold' : 'normal', minWidth: '40px' }}
-                    title={slot.name}>
-                    {slot.data ? slot.name : '-'}
-                  </button>
-                ))}
-              </div>
-
               {lineups.length > 0 && (
                 <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <h3 style={{ color: '#22c55e', margin: 0 }}>
-                        {activeLineupSlot >= 0 ? `[${lineupSlots[activeLineupSlot]?.name}] ` : ''}
-                        {lineups.length} Lineups
+                        {tabs[activeTabIdx].name} - {lineups.length} Lineups
                       </h3>
-                      <button onClick={() => { setLineups([]); setActiveLineupSlot(-1); }} style={{ background: '#ef4444', color: '#fff', padding: '4px 8px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}>✕ Close</button>
+                      <button onClick={clearLineups} style={{ background: '#ef4444', color: '#fff', padding: '4px 8px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}>✕ Clear</button>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => saveLineupSlot(activeLineupSlot >= 0 ? activeLineupSlot : lineupSlots.findIndex(s => !s.data) >= 0 ? lineupSlots.findIndex(s => !s.data) : 0)} 
-                        style={{ background: '#a855f7', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                        Save Set
-                      </button>
                       <button onClick={exportDraftKingsCSV} style={{ background: '#3b82f6', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                         Export CSV
                       </button>
@@ -672,17 +652,22 @@ export default function Home() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                   <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                     <tr style={{ background: '#0a0a0a' }}>
+                      <th colSpan={2} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#ef4444' }}>OVERRIDES</th>
                       <th colSpan={2} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#888' }}>INFO</th>
                       <th colSpan={2} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#22c55e' }}>CUSTOM MODEL</th>
                       <th colSpan={2} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#3b82f6' }}>DATAGOLF</th>
                       <th colSpan={2} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#eab308' }}>BLENDED (AVG)</th>
-                      <th colSpan={4} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#ef4444' }}>OVERRIDES / FINAL</th>
+                      <th style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#22c55e' }}>FINAL</th>
                       <th colSpan={7} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#a855f7' }}>STROKES GAINED</th>
                       <th colSpan={5} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#eab308' }}>SCORING</th>
                       <th colSpan={5} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#f97316' }}>BALL STRIKING</th>
-                      <th colSpan={3} style={{ padding: '8px', textAlign: 'center', color: '#ec4899' }}>PUTTING SPLITS</th>
+                      <th colSpan={3} style={{ borderRight: '2px solid #333', padding: '8px', textAlign: 'center', color: '#ec4899' }}>PUTTING SPLITS</th>
+                      <th style={{ padding: '8px', textAlign: 'center', color: '#888' }}>EXCLUDE</th>
                     </tr>
                     <tr style={{ background: '#1a1a1a', borderBottom: '2px solid #333' }}>
+                      {renderSortHeader('Bump', 'bump')}
+                      {renderSortHeader('Exp %', 'exposure')}
+                      
                       {renderSortHeader('Golfer', 'name')}
                       {renderSortHeader('Salary', 'salary')}
                       
@@ -695,10 +680,7 @@ export default function Home() {
                       {renderSortHeader('Avg Score', 'avgScore')}
                       {renderSortHeader('Avg Value', 'avgValue')}
 
-                      {renderSortHeader('Bump', 'bump')}
-                      {renderSortHeader('Exp %', 'exposure')}
-                      {renderSortHeader('Final Proj', 'finalProj')}
-                      {renderSortHeader('Exclude', 'exclude')}
+                      {renderSortHeader('Proj', 'finalProj')}
 
                       {renderSortHeader('OTT', 'sgOTT')}
                       {renderSortHeader('APP', 'sgAPP')}
@@ -723,6 +705,8 @@ export default function Home() {
                       {renderSortHeader('Bermuda', 'putt_bermuda')}
                       {renderSortHeader('Bent', 'putt_bentgrass')}
                       {renderSortHeader('Poa', 'putt_poa')}
+
+                      {renderSortHeader('X', 'exclude')}
                     </tr>
                   </thead>
                   <tbody>
