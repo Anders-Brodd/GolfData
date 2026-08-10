@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
@@ -18,37 +16,44 @@ export async function POST(req: Request) {
       "${userNotes || 'None'}"
 
       Based on historical data for this course AND the user's custom notes, determine the optimal weighting (adding up to 100%) for the following key stats to predict a winner:
-      - sgOTT (Strokes Gained: Off the Tee)
-      - sgAPP (Strokes Gained: Approach)
-      - sgARG (Strokes Gained: Around the Green)
-      - sgPUTT (Strokes Gained: Putting)
-      - sgT2G (Strokes Gained: Tee to Green)
-      - sgTotal (Strokes Gained: Total)
-      - putt_bermuda (Putting on Bermuda grass)
-      - putt_bentgrass (Putting on Bentgrass)
-      - putt_poa (Putting on Poa annua)
-      - wind (High wind skill)
+      
+      Strokes Gained:
+      - sgOTT
+      - sgAPP
+      - sgARG
+      - sgPUTT
+      - sgT2G
+      - sgTotal
+      
+      Scoring:
+      - round_score (Lower is better)
+      - eagles_or_better
+      - birdies
+      - pars
+      - bogies (Lower is better)
+      - doubles_or_worse (Lower is better)
+      - bob (Birdies or Better)
+      - ba (Bogey Avoidance, Lower is better)
+      
+      Ball Striking:
+      - driving_dist
+      - driving_acc
+      - gir
+      - scrambling
+      - prox_fw (Lower is better)
+      - prox_rgh (Lower is better)
+      - great_shots
+      - poor_shots (Lower is better)
+      
+      Course/Conditions:
+      - putt_bermuda
+      - putt_bentgrass
+      - putt_poa
+      - wind
       
       Return ONLY a raw JSON object with two keys:
-      1. "reasoning": A 1-2 sentence string explaining why you chose these weights, explicitly mentioning how you incorporated the user's custom notes.
-      2. "weights": An object with the above stat keys and integer percentage values (0-100) that sum to exactly 100.
-      
-      Example format:
-      {
-        "reasoning": "Since the rough is thick as requested, I heavily weighted accuracy and sgAPP. The course is Bermuda, so putt_bermuda gets 15%.",
-        "weights": {
-          "sgOTT": 10,
-          "sgAPP": 20,
-          "sgARG": 5,
-          "sgPUTT": 10,
-          "sgT2G": 10,
-          "sgTotal": 5,
-          "putt_bermuda": 15,
-          "putt_bentgrass": 0,
-          "putt_poa": 0,
-          "wind": 5
-        }
-      }
+      1. "reasoning": A 1-2 sentence string explaining why you chose these weights.
+      2. "weights": An object with the EXACT stat keys above and integer percentage values (0-100) that sum to exactly 100.
     `;
 
     const response = await openai.chat.completions.create({
