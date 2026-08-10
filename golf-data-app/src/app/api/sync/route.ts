@@ -39,7 +39,7 @@ ${playerNames.join(', ')}
 }
 
 function calculateRollingAverages(rounds: any[], count: number) {
-  if (rounds.length === 0) return { sgOTT: 0, sgAPP: 0, sgARG: 0, sgPUTT: 0, sgT2G: 0, sgTotal: 0 };
+  if (rounds.length === 0) return { sgOTT: 0, sgAPP: 0, sgARG: 0, sgPUTT: 0, sgT2G: 0, sgTotal: 0, bob: 0, ba: 0 };
   
   const targetRounds = rounds.slice(0, count);
   const sums = targetRounds.reduce((acc, r) => {
@@ -49,8 +49,15 @@ function calculateRollingAverages(rounds: any[], count: number) {
     acc.sgPUTT += Number(r.sg_putt || 0);
     acc.sgT2G += Number(r.sg_t2g || 0);
     acc.sgTotal += Number(r.sg_total || 0);
+    
+    // Birdies or Better (BOB) = birdies + eagles
+    acc.bob += (Number(r.birdies || 0) + Number(r.eagles_or_better || 0));
+    
+    // Bogey Avoidance (BA) = bogies + doubles
+    acc.ba += (Number(r.bogies || 0) + Number(r.doubles_or_worse || 0));
+    
     return acc;
-  }, { sgOTT: 0, sgAPP: 0, sgARG: 0, sgPUTT: 0, sgT2G: 0, sgTotal: 0 });
+  }, { sgOTT: 0, sgAPP: 0, sgARG: 0, sgPUTT: 0, sgT2G: 0, sgTotal: 0, bob: 0, ba: 0 });
 
   const len = targetRounds.length;
   return {
@@ -59,7 +66,9 @@ function calculateRollingAverages(rounds: any[], count: number) {
     sgARG: sums.sgARG / len,
     sgPUTT: sums.sgPUTT / len,
     sgT2G: sums.sgT2G / len,
-    sgTotal: sums.sgTotal / len
+    sgTotal: sums.sgTotal / len,
+    bob: sums.bob / len,
+    ba: sums.ba / len
   };
 }
 
@@ -88,7 +97,6 @@ export async function GET() {
 
     const allRounds = [...(Array.isArray(r2024) ? r2024 : []), ...(Array.isArray(r2025) ? r2025 : []), ...(Array.isArray(r2026) ? r2026 : [])];
     
-    // Group by dg_id and sort chronologically (most recent first)
     const roundsByPlayer = new Map();
     allRounds.forEach(r => {
       const id = String(r.dg_id);
@@ -97,8 +105,6 @@ export async function GET() {
     });
 
     roundsByPlayer.forEach(rounds => {
-      // sort by date descending (assuming r.date exists or r.round_id/event_id indicates time)
-      // data golf raw rounds usually have 'date' or 'event_completed' or 'round'
       rounds.sort((a: any, b: any) => new Date(b.date || b.start_date || 0).getTime() - new Date(a.date || a.start_date || 0).getTime());
     });
 

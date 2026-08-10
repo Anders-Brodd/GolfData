@@ -9,6 +9,8 @@ interface SGStats {
   sgPUTT: number;
   sgT2G: number;
   sgTotal: number;
+  bob: number;
+  ba: number;
 }
 
 interface GolferStats extends PlayerData {
@@ -43,6 +45,10 @@ export default function Home() {
   const [minSalary, setMinSalary] = useState(49000);
   const [maxSalary, setMaxSalary] = useState(50000);
   
+  // Sorting
+  const [sortField, setSortField] = useState('modelScore');
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
+
   // GPT Chat Notes
   const [gptNotes, setGptNotes] = useState('');
   const [gptReasoning, setGptReasoning] = useState('');
@@ -54,28 +60,26 @@ export default function Home() {
     sgPUTT: 10,
     sgT2G: 10,
     sgTotal: 10,
-    distance: 5,
-    accuracy: 5,
+    bob: 10,
+    ba: 5,
+    distance: 2,
+    accuracy: 3,
     putt_bermuda: 5,
     putt_bentgrass: 5,
-    putt_poa: 5,
-    wind: 10
+    putt_poa: 0,
+    wind: 5
   });
 
   useEffect(() => {
-    // Fetch Schedule
     fetch('/api/tournaments')
       .then(res => res.json())
       .then(data => {
         if (data.success && data.schedule) {
           setTournaments(data.schedule);
-          if (data.schedule.length > 0) {
-            setSelectedTournament(data.schedule[0].event_name);
-          }
+          if (data.schedule.length > 0) setSelectedTournament(data.schedule[0].event_name);
         }
       });
 
-    // Fetch Players
     const fetchLivePlayers = async () => {
       try {
         const res = await fetch('/api/players');
@@ -108,7 +112,6 @@ export default function Home() {
         body: JSON.stringify({ tournament: selectedTournament, userNotes: gptNotes })
       });
       const data = await res.json();
-      
       if (data.success && data.weights) {
         setWeights(prev => ({ ...prev, ...data.weights }));
         setGptReasoning(data.reasoning || 'No reasoning provided by AI.');
@@ -137,6 +140,9 @@ export default function Home() {
     score += (stats.sgPUTT * (weights.sgPUTT / 10));
     score += (stats.sgT2G * (weights.sgT2G / 10));
     score += (stats.sgTotal * (weights.sgTotal / 10));
+    score += (stats.bob * (weights.bob / 10));
+    score += (stats.ba * (weights.ba / 10)); // BA is technically negative usually, so a negative number is bad. Higher is better if they don't get bogeys? Wait, bogies + doubles is a count. Lower is better. So we subtract it.
+    score -= (stats.ba * (weights.ba / 10));
     score += ((p.distance || 0) * (weights.distance / 100));
     score += ((p.accuracy || 0) * (weights.accuracy / 100));
     score += (p.putt_bermuda * (weights.putt_bermuda / 1000));
@@ -144,6 +150,12 @@ export default function Home() {
     score += (p.putt_poa * (weights.putt_poa / 1000));
     score += (p.wind * (weights.wind / 1000));
     return score;
+  };
+
+  const getValueScore = (p: GolferStats) => {
+    const score = getModelScore(p);
+    if (score === 0) return 0;
+    return p.salary / score;
   };
 
   const generateLineups = () => {
@@ -158,6 +170,50 @@ export default function Home() {
     const optimized = LineupOptimizer.generateTopLineups(mappedPlayers, lineupCount, { minSalary, maxSalary });
     setLineups(optimized);
   };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+  };
+
+  const sortedPlayers = [...players].sort((a, b) => {
+    const aStats = getActiveStats(a);
+    const bStats = getActiveStats(b);
+    let aVal: number | string = 0;
+    let bVal: number | string = 0;
+
+    switch (sortField) {
+      case 'name': aVal = a.name; bVal = b.name; break;
+      case 'salary': aVal = a.salary; bVal = b.salary; break;
+      case 'modelScore': aVal = getModelScore(a); bVal = getModelScore(b); break;
+      case 'valueScore': aVal = getValueScore(a); bVal = getValueScore(b); break;
+      case 'sgOTT': aVal = aStats.sgOTT; bVal = bStats.sgOTT; break;
+      case 'sgAPP': aVal = aStats.sgAPP; bVal = bStats.sgAPP; break;
+      case 'sgARG': aVal = aStats.sgARG; bVal = bStats.sgARG; break;
+      case 'sgPUTT': aVal = aStats.sgPUTT; bVal = bStats.sgPUTT; break;
+      case 'sgT2G': aVal = aStats.sgT2G; bVal = bStats.sgT2G; break;
+      case 'sgTotal': aVal = aStats.sgTotal; bVal = bStats.sgTotal; break;
+      case 'bob': aVal = aStats.bob; bVal = bStats.bob; break;
+      case 'ba': aVal = aStats.ba; bVal = bStats.ba; break;
+      case 'putt_bermuda': aVal = a.putt_bermuda; bVal = b.putt_bermuda; break;
+      case 'putt_bentgrass': aVal = a.putt_bentgrass; bVal = b.putt_bentgrass; break;
+      case 'putt_poa': aVal = a.putt_poa; bVal = b.putt_poa; break;
+    }
+
+    if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const renderSortHeader = (title: string, field: string) => (
+    <th style={{ padding: '8px', color: '#888', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort(field)}>
+      {title} {sortField === field ? (sortDir === 'asc' ? '^' : 'v') : ''}
+    </th>
+  );
 
   return (
     <main style={{ padding: '0', height: '100vh', display: 'flex', flexDirection: 'column', background: '#0a0a0a', color: '#fff', fontFamily: 'sans-serif' }}>
@@ -194,12 +250,11 @@ export default function Home() {
       </header>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        
         <aside style={{ width: '360px', background: '#111', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
             
             <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
-              <h3 style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#3b82f6' }}>? AI Course Adjust</h3>
+              <h3 style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#3b82f6' }}>AI Course Adjust</h3>
               <textarea 
                 placeholder="Add custom notes for GPT (e.g., 'Weight accuracy heavily, rough is thick...')"
                 value={gptNotes}
@@ -239,7 +294,6 @@ export default function Home() {
           </div>
 
           <div style={{ padding: '20px', background: '#000', borderTop: '1px solid #333' }}>
-            
             <details style={{ marginBottom: '16px' }}>
               <summary style={{ fontSize: '0.8rem', color: '#888', cursor: 'pointer', marginBottom: '8px' }}>Advanced Settings</summary>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
@@ -295,7 +349,7 @@ export default function Home() {
                 <div style={{ marginBottom: '24px', padding: '16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3 style={{ color: '#22c55e', margin: 0 }}>? {lineups.length} Lineup{lineups.length !== 1 && 's'} Generated</h3>
+                    <h3 style={{ color: '#22c55e', margin: 0 }}>{lineups.length} Lineup{lineups.length !== 1 && 's'} Generated</h3>
                     <div style={{ display: 'flex', gap: '24px', background: '#000', padding: '8px 16px', borderRadius: '4px', border: '1px solid #333' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontSize: '0.75rem', color: '#888' }}>Total Risk</span>
@@ -329,35 +383,42 @@ export default function Home() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                   <thead>
                     <tr style={{ background: '#1a1a1a', borderBottom: '2px solid #333' }}>
-                      <th style={{ padding: '8px', color: '#888' }}>Golfer</th>
-                      <th style={{ padding: '8px', color: '#888' }}>Salary</th>
-                      <th style={{ padding: '8px', color: '#22c55e' }}>Model Score</th>
-                      <th style={{ padding: '8px', color: '#888' }}>SG:OTT</th>
-                      <th style={{ padding: '8px', color: '#888' }}>SG:APP</th>
-                      <th style={{ padding: '8px', color: '#888' }}>SG:ARG</th>
-                      <th style={{ padding: '8px', color: '#888' }}>SG:PUTT</th>
-                      <th style={{ padding: '8px', color: '#888' }}>SG:T2G</th>
-                      <th style={{ padding: '8px', color: '#888' }}>SG:Tot</th>
-                      <th style={{ padding: '8px', color: '#888' }}>Putt. Berm</th>
-                      <th style={{ padding: '8px', color: '#888' }}>Putt. Bent</th>
-                      <th style={{ padding: '8px', color: '#888' }}>Putt. Poa</th>
+                      {renderSortHeader('Golfer', 'name')}
+                      {renderSortHeader('Salary', 'salary')}
+                      {renderSortHeader('Model Score', 'modelScore')}
+                      {renderSortHeader('Value Score', 'valueScore')}
+                      {renderSortHeader('SG:OTT', 'sgOTT')}
+                      {renderSortHeader('SG:APP', 'sgAPP')}
+                      {renderSortHeader('SG:ARG', 'sgARG')}
+                      {renderSortHeader('SG:PUTT', 'sgPUTT')}
+                      {renderSortHeader('SG:T2G', 'sgT2G')}
+                      {renderSortHeader('SG:Tot', 'sgTotal')}
+                      {renderSortHeader('BOB', 'bob')}
+                      {renderSortHeader('B.Avoid', 'ba')}
+                      {renderSortHeader('Putt. Berm', 'putt_bermuda')}
+                      {renderSortHeader('Putt. Bent', 'putt_bentgrass')}
+                      {renderSortHeader('Putt. Poa', 'putt_poa')}
                     </tr>
                   </thead>
                   <tbody>
-                    {players.map(p => {
+                    {sortedPlayers.map(p => {
                       const modelScore = getModelScore(p);
+                      const valueScore = getValueScore(p);
                       const stats = getActiveStats(p);
                       return (
                         <tr key={p.id} style={{ borderBottom: '1px solid #222' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>{p.name}</td>
                           <td style={{ padding: '8px' }}>${p.salary}</td>
                           <td style={{ padding: '8px', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem' }}>{modelScore.toFixed(2)}</td>
+                          <td style={{ padding: '8px', color: '#3b82f6', fontWeight: 'bold', fontSize: '0.9rem' }}>{valueScore === 0 ? '-' : `$${valueScore.toFixed(0)}/pt`}</td>
                           <td style={{ padding: '8px' }}>{stats.sgOTT.toFixed(2)}</td>
                           <td style={{ padding: '8px' }}>{stats.sgAPP.toFixed(2)}</td>
                           <td style={{ padding: '8px' }}>{stats.sgARG.toFixed(2)}</td>
                           <td style={{ padding: '8px' }}>{stats.sgPUTT.toFixed(2)}</td>
                           <td style={{ padding: '8px' }}>{stats.sgT2G.toFixed(2)}</td>
                           <td style={{ padding: '8px' }}>{stats.sgTotal.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{stats.bob.toFixed(2)}</td>
+                          <td style={{ padding: '8px' }}>{stats.ba.toFixed(2)}</td>
                           <td style={{ padding: '8px' }}>{p.putt_bermuda}</td>
                           <td style={{ padding: '8px' }}>{p.putt_bentgrass}</td>
                           <td style={{ padding: '8px' }}>{p.putt_poa}</td>
