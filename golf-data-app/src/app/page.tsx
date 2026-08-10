@@ -361,9 +361,9 @@ export default function Home() {
                       Export to DraftKings CSV
                     </button>
                   </div>
-                  <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px' }}>
-                    {lineups.slice(0, 10).map((l, i) => (
-                      <div key={i} style={{ minWidth: '260px', background: '#222', padding: '12px', borderRadius: '8px', border: '1px solid #444' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px', maxHeight: '400px', overflowY: 'auto', paddingRight: '8px' }}>
+                    {lineups.map((l, i) => (
+                      <div key={i} style={{ background: '#222', padding: '12px', borderRadius: '8px', border: '1px solid #444' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #444', paddingBottom: '8px' }}>
                           <strong style={{ color: '#fff' }}>Lineup #{i+1}</strong><span style={{ color: '#22c55e' }}>{l.totalProjection.toFixed(1)} pts</span>
                         </div>
