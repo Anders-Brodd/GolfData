@@ -7,7 +7,8 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { tournament, userNotes } = await req.json();
+    const { tournament, userNotes, gptModel } = await req.json();
+    const selectedModel = gptModel || 'gpt-4o-mini';
 
     const prompt = `
       You are an expert DFS Golf modeler.
