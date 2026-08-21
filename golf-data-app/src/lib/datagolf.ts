@@ -36,4 +36,11 @@ export class DataGolfAPI {
     if (!res.ok) throw new Error(`DataGolf getHistoricalRawRounds failed: ${res.statusText}`);
     return res.json();
   }
+
+  async getFieldUpdates(tour = 'pga') {
+    const url = `${this.baseUrl}/field-updates?tour=${tour}&file_format=json&key=${this.apiKey}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`DataGolf getFieldUpdates failed: ${res.statusText}`);
+    return res.json();
+  }
 }

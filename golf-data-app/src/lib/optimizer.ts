@@ -27,14 +27,15 @@ export class LineupOptimizer {
     const sortedPlayers = [...players].sort((a, b) => b.projection - a.projection);
 
     const lineupSize = 6;
-    const maxBulkAttempts = 50000;
+    const maxBulkAttempts = Math.max(100000, config.numLineups * 200);
     
     // Step 1: Generate a massive bulk pool of valid lineups
     const bulkLineups: Map<string, Lineup> = new Map();
     let attempts = 0;
     
     // Create highly optimized pool to draw from
-    while (bulkLineups.size < 5000 && attempts < maxBulkAttempts) {
+    const targetBulk = Math.max(10000, config.numLineups * 10);
+    while (bulkLineups.size < targetBulk && attempts < maxBulkAttempts) {
       attempts++;
       // Biased random sort to favor high projections but allow variation
       const randomizedPool = [...sortedPlayers].sort((a, b) => {

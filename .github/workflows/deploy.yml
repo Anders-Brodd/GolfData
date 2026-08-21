@@ -1,0 +1,24 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Kamatera Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: 103.54.59.105
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /root/GolfData/golf-data-app
+            git reset --hard origin/main
+            git pull origin main
+            npm install
+            npm run build
+            pm2 restart golf-app
