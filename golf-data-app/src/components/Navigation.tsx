@@ -69,11 +69,7 @@ export function Navigation({ tabs, setTabs, activeTabIdx, setActiveTabIdx }: any
             <img src="/logo.png" alt="Logo" style={{ height: '80px', objectFit: 'contain' }} />
             <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#22c55e', whiteSpace: 'nowrap' }}>Custom Model</span>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-             <button onClick={() => router.push('/')} style={{ background: pathname === '/' ? '#222' : 'transparent', color: '#fff', border: '1px solid #333', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Player Grid</button>
-             
-             {tabs[activeTabIdx]?.lineups?.length > 0 && (<button onClick={() => router.push('/lineups')} style={{ background: pathname === '/lineups' ? '#222' : 'transparent', color: '#fff', border: '1px solid #333', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Lineups</button>)}
-          </div>
+          
         </div>
         
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
