@@ -402,10 +402,10 @@ export default function Home() {
   };
 
   const exportPage1ToCSV = () => {
-    let csv = "Name,Salary,Tee Time,Wind,SG OTT,SG APP,SG ARG,SG PUTT,SG T2G,SG BS,SG Total,EoB%,BoB%,PoB%,BA%,Driving Dist,Driving Acc,GIR,Scrambling,Prox FW,Prox RGH\n";
+    let csv = "Name,Salary,Tee Time,Wind,SG OTT,SG APP,SG ARG,SG PUTT,SG T2G,SG BS,SG Total,EoB%,BoB%,PoB%,BA%,Driving Dist,Driving Acc,GIR,Scrambling,Prox FW,Prox RGH,Great Shots,Poor Shots\n";
     sortedPlayers.forEach(p => {
       const wStats = getDisplayStats(p, Number(viewRounds));
-      csv += `"${p.name}",${p.salary || ''},${p.teetime || ''},${p.wind || ''},${(wStats.sgOTT||0).toFixed(2)},${(wStats.sgAPP||0).toFixed(2)},${(wStats.sgARG||0).toFixed(2)},${(wStats.sgPUTT||0).toFixed(2)},${(wStats.sgT2G||0).toFixed(2)},${(wStats.sgBS||0).toFixed(2)},${(wStats.sgTotal||0).toFixed(2)},${(wStats.eob||0).toFixed(1)},${(wStats.bob||0).toFixed(1)},${(wStats.pob||0).toFixed(1)},${(wStats.ba||0).toFixed(1)},${(wStats.driving_dist||0).toFixed(1)},${(wStats.driving_acc||0).toFixed(1)},${(wStats.gir||0).toFixed(1)},${(wStats.scrambling||0).toFixed(1)},${(wStats.prox_fw||0).toFixed(1)},${(wStats.prox_rgh||0).toFixed(1)}\n`;
+      csv += `"${p.name}",${p.salary || ''},${p.teetime || ''},${p.wind || ''},${(wStats.sgOTT||0).toFixed(2)},${(wStats.sgAPP||0).toFixed(2)},${(wStats.sgARG||0).toFixed(2)},${(wStats.sgPUTT||0).toFixed(2)},${(wStats.sgT2G||0).toFixed(2)},${(wStats.sgBS||0).toFixed(2)},${(wStats.sgTotal||0).toFixed(2)},${(wStats.eob||0).toFixed(1)},${(wStats.bob||0).toFixed(1)},${(wStats.pob||0).toFixed(1)},${(wStats.ba||0).toFixed(1)},${(wStats.driving_dist||0).toFixed(1)},${(wStats.driving_acc||0).toFixed(1)},${(wStats.gir||0).toFixed(1)},${(wStats.scrambling||0).toFixed(1)},${(wStats.prox_fw||0).toFixed(1)},${(wStats.prox_rgh||0).toFixed(1)},${(wStats.great_shots||0).toFixed(2)},${(wStats.poor_shots||0).toFixed(2)}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
