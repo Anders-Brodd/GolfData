@@ -551,127 +551,17 @@ export default function Home() {
                   </div>
                 </div>
 
-                <details open style={{ marginBottom: '12px', background: '#1a1a1a', padding: '8px', borderRadius: '4px', borderLeft: '4px solid #a855f7' }}>
-                  <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#a855f7', fontSize: '0.85rem' }}>Strokes Gained</summary>
-                  <div style={{ marginTop: '12px' }}>
-                    {renderWeightInput('sgOTT', 'Off The Tee')}
-                    {renderWeightInput('sgAPP', 'Approach')}
-                    {renderWeightInput('sgARG', 'Around Green')}
-                    {renderWeightInput('sgPUTT', 'Putting')}
-                          {renderWeightInput('sgT2G', 'Tee to Green')}
-                          {renderWeightInput('sgBS', 'Ball Striking')}
-                          {renderWeightInput('sgTotal', 'Total SG')}
-                  </div>
-                </details>
-                <details style={{ marginBottom: '12px', background: '#1a1a1a', padding: '8px', borderRadius: '4px', borderLeft: '4px solid #eab308' }}>
-                  <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#eab308', fontSize: '0.85rem' }}>Scoring</summary>
-                  <div style={{ marginTop: '12px' }}>
-                    {renderWeightInput('eob', 'Eagle or Better %')}
-                    {renderWeightInput('bob', 'Birdie or Better %')}
-                    {renderWeightInput('pob', 'Par or Better %')}
-                    {renderWeightInput('ba', 'Bogey Avoidance')}
-                  </div>
-                </details>
-                <details style={{ marginBottom: '12px', background: '#1a1a1a', padding: '8px', borderRadius: '4px', borderLeft: '4px solid #f97316' }}>
-                  <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#f97316', fontSize: '0.85rem' }}>Ball Striking & Proximities</summary>
-                  <div style={{ marginTop: '12px' }}>
-                    {renderWeightInput('driving_dist', 'Driving Distance')}
-                    {renderWeightInput('driving_acc', 'Driving Accuracy')}
-                    {renderWeightInput('gir', 'GIR')}
-                    {renderWeightInput('scrambling', 'Scrambling')}
-                    {renderWeightInput('great_shots', 'Great Shots')}
-                    {renderWeightInput('poor_shots', 'Poor Shots')}
-                    {renderWeightInput('prox_fw', 'Prox: Fairway')}
-                    {renderWeightInput('prox_rgh', 'Prox: Rough')}
-                  </div>
-                </details>
-              </div>
-              <div style={{ padding: '20px', background: '#0a0a0a', borderTop: '1px solid #333' }}>
-                <h3 style={{ fontSize: '0.9rem', color: '#a855f7', marginBottom: '12px', marginTop: 0 }}>GPT Setup</h3>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                  <select value={gptModel} onChange={e => setGptModel(e.target.value)} style={{ flex: 1, background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px' }}>
-                    {GPT_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
+                                                <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontWeight: 'bold', color: '#10b981', fontSize: '0.85rem' }}>Vegas Odds (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={safetyWeight}
+                    onChange={(e) => { setSafetyWeight(Number(e.target.value)); syncStateToServer({ safetyWeight: Number(e.target.value) }); }}
+                    style={{ width: '60px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '4px 8px', textAlign: 'center' }}
+                  />
                 </div>
-                {fileConfigs.map((fc, idx) => (
-                  <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                    <select value={fc.rounds} onChange={e => {
-                      const nf = [...fileConfigs]; nf[idx].rounds = Number(e.target.value); setFileConfigs(nf); syncStateToServer({ fileConfigs: nf });
-                    }} style={{ flex: 1, background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px' }}>
-                      <option value="16">16 Rounds Data</option>
-                      <option value="32">32 Rounds Data</option>
-                      <option value="64">64 Rounds Data</option>
-                    </select>
-                    <input type="number" min="0" max="100" value={fc.weight} onChange={e => {
-                      const nf = [...fileConfigs]; nf[idx].weight = Number(e.target.value); setFileConfigs(nf); syncStateToServer({ fileConfigs: nf });
-                    }} style={{ width: '70px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px', textAlign: 'center' }} />
-                  </div>
-                ))}
-                <div style={{ textAlign: 'right', fontSize: '0.75rem', color: fileConfigs.reduce((a,b)=>a+b.weight,0) === 100 ? '#22c55e' : '#ef4444', marginBottom: '12px' }}>
-                  Total: {fileConfigs.reduce((a,b)=>a+b.weight,0)}%
-                </div>
-                <button onClick={sendToGPT} disabled={isGptRunning} style={{ width: '100%', background: '#a855f7', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span>{isGptRunning ? 'Processing...' : 'Send to GPT'}</span>
-                  {!isGptRunning && <span style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>Est. Cost: ${estCost}</span>}
-                </button>
-                <button onClick={exportPage1ToCSV} style={{ width: '100%', marginTop: '8px', background: '#2563eb', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
-                  Export Weighted Stats (CSV)
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* PHASE 2: OPTIMIZER SIDEBAR */}
-              <div style={{ padding: '24px', flex: 1, overflowY: 'auto' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '8px', marginBottom: '16px' }}>
-                   <h2 style={{ color: '#22c55e', margin: 0 }}>Optimizer Settings</h2>
-                   <button onClick={() => setGptCompleted(false)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.8rem' }}>Edit Data</button>
-                </div>
-                <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '24px' }}>
-                  GPT processing complete! Use the settings below to generate your DraftKings lineups.
-                </p>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-                  <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Lineups</label>
-                    <input type="number" value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups: Number(e.target.value), maxExposure, minUniques, minSalary, maxSalary } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
-                  </div>
-                  <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Global Exp %</label>
-                    <input type="number" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure: Number(e.target.value), minUniques, minSalary, maxSalary } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
-                  </div>
-                  <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label>
-                    <input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary: Number(e.target.value), maxSalary } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
-                  </div>
-                  <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Max Salary</label>
-                    <input type="number" value={maxSalary} onChange={e => { setMaxSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary, maxSalary: Number(e.target.value) } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
-                  </div>
-                  <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Min Uniques</label>
-                    <input type="number" value={minUniques} onChange={e => { setMinUniques(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques: Number(e.target.value), minSalary, maxSalary } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
-                  </div>
-                </div>
-                
-                                <details style={{ marginBottom: '16px', background: '#1a1a1a', padding: '8px', borderRadius: '4px', borderLeft: '4px solid #10b981' }} open>
-                  <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#10b981', fontSize: '0.85rem' }}>Safety System</summary>
-                  <div style={{ marginTop: '12px' }}>
-                    <div style={{ marginBottom: '8px' }}>
-                      <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#9ca3af', marginBottom: '4px' }}>
-                        <span>Vegas Odds Blend</span>
-                        <span style={{ color: '#10b981', fontWeight: 'bold' }}>{safetyWeight}%</span>
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="1"
-                        value={safetyWeight}
-                        onChange={(e) => { setSafetyWeight(Number(e.target.value)); syncStateToServer({ safetyWeight: Number(e.target.value) }); }}
-                        style={{ width: '100%', accentColor: '#10b981' }}
-                      />
-                      <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '4px' }}>
-                        0% = AI Score | 100% = Vegas Odds
-                      </div>
-                    </div>
-                  </div>
-                </details>
                 
                 <hr style={{ borderColor: '#333', margin: '20px 0' }} />
                 <button onClick={generateLineups} disabled={isGenerating} style={{ width: '100%', background: '#3b82f6', color: '#fff', padding: '16px', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}>
