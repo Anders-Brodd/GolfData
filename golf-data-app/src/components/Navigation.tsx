@@ -39,6 +39,20 @@ export function Navigation({ tabs, setTabs, activeTabIdx, setActiveTabIdx }: any
     setTabs(nt);
   };
 
+
+  const deleteTab = (index: number) => {
+    if (tabs.length === 1) return alert('You must have at least one tab.');
+    if (!confirm('Are you sure you want to delete this tab?')) return;
+    const nt = [...tabs];
+    nt.splice(index, 1);
+    setTabs(nt);
+    if (activeTabIdx >= nt.length) {
+      setActiveTabIdx(nt.length - 1);
+    } else if (activeTabIdx === index) {
+      setActiveTabIdx(0);
+    }
+  };
+
   const addTab = () => {
     if (tabs.length >= 10) return alert('Maximum 10 tabs allowed.');
     setTabs([...tabs, { name: `Tab ${tabs.length + 1}`, weights: {}, lineups: [] }]);
@@ -96,13 +110,26 @@ export function Navigation({ tabs, setTabs, activeTabIdx, setActiveTabIdx }: any
               onClick={() => renameTab(idx)}
               style={{
                 padding: '8px', background: activeTabIdx === idx ? '#2563eb' : '#222',
-                color: '#aaa', border: '1px solid #333', borderRadius: '0 4px 4px 0',
+                color: '#aaa', border: '1px solid #333', borderLeft: 'none', borderRight: tabs.length > 1 ? 'none' : '1px solid #333', borderRadius: tabs.length > 1 ? '0' : '0 4px 4px 0',
                 cursor: 'pointer'
               }}
               title="Rename Tab"
             >
-              ✎
+              ?
             </button>
+            {tabs.length > 1 && (
+              <button
+                onClick={() => deleteTab(idx)}
+                style={{
+                  padding: '8px', background: activeTabIdx === idx ? '#2563eb' : '#222',
+                  color: '#ef4444', border: '1px solid #333', borderLeft: '1px solid #444', borderRadius: '0 4px 4px 0',
+                  cursor: 'pointer'
+                }}
+                title="Delete Tab"
+              >
+                ?
+              </button>
+            )}
           </div>
         ))}
         {tabs.length < 10 && (
