@@ -41,6 +41,25 @@ const DEFAULT_WEIGHTS = {
   great_shots: 5, poor_shots: 5, putt_bermuda: 0, putt_bentgrass: 0, putt_poa: 0, wind: 0, sgT2G: 0, sgBS: 0, sgTotal: 0,
 };
 
+
+let syncTimeout: NodeJS.Timeout;
+let pendingSync: any = {};
+const syncStateToServer = (updates: any) => {
+  Object.assign(pendingSync, updates);
+  clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(async () => {
+    try {
+      const payload = { ...pendingSync };
+      pendingSync = {};
+      await fetch('/api/app-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {}
+  }, 500);
+};
+
 export default function Home() {
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
@@ -83,16 +102,33 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
+    let interval: NodeJS.Timeout;
     if (typeof window !== 'undefined') {
-      const storedTabs = localStorage.getItem('skroderup_tabs');
-      if (storedTabs) setTabs(JSON.parse(storedTabs));
-      const active = Number(localStorage.getItem('skroderup_active_tab') || 0);
-      setActiveTabIdx(active);
-      const overrides = localStorage.getItem('skroderup_player_overrides');
-      if (overrides) setPlayerOverrides(JSON.parse(overrides));
-      
-      const storedWeights = localStorage.getItem('skroderup_model_weights');
-      if (storedWeights) setWeights(JSON.parse(storedWeights));
+      const loadState = async () => {
+        try {
+          const res = await fetch('/api/app-state');
+          const data = await res.json();
+          if (data.success && data.state) {
+            const s = data.state;
+            if (s.tabs) setTabs(s.tabs);
+            if (s.activeTabIdx !== undefined) setActiveTabIdx(s.activeTabIdx);
+            if (s.playerOverrides) setPlayerOverrides(s.playerOverrides);
+            if (s.weights) setWeights(s.weights);
+            if (s.safetyWeight !== undefined) setSafetyWeight(s.safetyWeight);
+            if (s.fileConfigs) setFileConfigs(s.fileConfigs);
+            if (s.optimizerSettings) {
+              setNumLineups(s.optimizerSettings.numLineups);
+              setMaxExposure(s.optimizerSettings.maxExposure);
+              setMinUniques(s.optimizerSettings.minUniques);
+              setMinSalary(s.optimizerSettings.minSalary);
+              setMaxSalary(s.optimizerSettings.maxSalary);
+            }
+          }
+        } catch (err) {}
+      };
+
+      loadState();
+      interval = setInterval(loadState, 3000);
 
       fetchData();
       setIsClient(true);
@@ -103,7 +139,6 @@ export default function Home() {
       };
       window.addEventListener('tournament_changed', handleTourneyChange);
       
-      // Load tournament for AI
       fetch('/api/tournaments').then(res => res.json()).then(data => {
         if (data.success && data.schedule) {
           const upcoming = data.schedule.find((t: any) => String(t.event_completed) === "0" || t.event_completed === false);
@@ -112,7 +147,10 @@ export default function Home() {
         }
       }).catch(()=>{});
 
-      return () => window.removeEventListener('tournament_changed', handleTourneyChange);
+      return () => {
+        window.removeEventListener('tournament_changed', handleTourneyChange);
+        clearInterval(interval);
+      };
     }
   }, []);
 
@@ -144,7 +182,7 @@ export default function Home() {
   const updateWeight = (key: string, val: number) => {
     const nw = { ...weights, [key]: val };
     setWeights(nw);
-    localStorage.setItem('skroderup_model_weights', JSON.stringify(nw));
+    syncStateToServer({ weights: nw });
   };
 
   const aiAutoWeight = async () => {
@@ -167,7 +205,7 @@ export default function Home() {
         if (newSum !== 100) newWeights.sgTotal += (100 - newSum); 
         
         setWeights(newWeights);
-        localStorage.setItem('skroderup_model_weights', JSON.stringify(newWeights));
+        syncStateToServer({ weights: newWeights });
       }
     } catch (err) {}
     setIsAiLoading(false);
@@ -175,7 +213,7 @@ export default function Home() {
 
   const saveOverrides = (newO: any) => {
     setPlayerOverrides(newO);
-    localStorage.setItem('skroderup_player_overrides', JSON.stringify(newO));
+    syncStateToServer({ playerOverrides: newO });
   };
   const updateOverride = (id: string, field: string, val: any) => {
     const o = { ...playerOverrides };
@@ -388,7 +426,7 @@ export default function Home() {
         setTabs(prev => {
           const nt = [...prev];
           nt[activeTabIdx] = { ...nt[activeTabIdx], lineups: optimized };
-          localStorage.setItem('skroderup_tabs', JSON.stringify(nt));
+          syncStateToServer({ tabs: nt });
           return nt;
         });
         
@@ -462,11 +500,11 @@ export default function Home() {
 
   const updateActiveTab = (idx: number) => {
     setActiveTabIdx(idx);
-    localStorage.setItem('skroderup_active_tab', idx.toString());
+    syncStateToServer({ activeTabIdx: idx });
   };
   const updateTabs = (newTabs: any[]) => {
     setTabs(newTabs);
-    localStorage.setItem('skroderup_tabs', JSON.stringify(newTabs));
+    syncStateToServer({ tabs: newTabs });
   };
 
   return (
@@ -500,7 +538,7 @@ export default function Home() {
                         const nw = { ...weights };
                         for (const k in nw) nw[k] = 0;
                         setWeights(nw);
-                        localStorage.setItem('skroderup_model_weights', JSON.stringify(nw));
+                        syncStateToServer({ weights: nw });
                       }} style={{ background: '#333', border: '1px solid #444', color: '#ccc', padding: '2px 8px', fontSize: '0.7rem', borderRadius: '4px', cursor: 'pointer' }}>Zero All</button>
                     </div>
                     <span style={{ fontSize: '0.8rem', color: totalWeight === 100 ? '#22c55e' : '#eab308', fontWeight: 'bold' }}>{totalWeight} / 100%</span>
@@ -555,14 +593,14 @@ export default function Home() {
                 {fileConfigs.map((fc, idx) => (
                   <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                     <select value={fc.rounds} onChange={e => {
-                      const nf = [...fileConfigs]; nf[idx].rounds = Number(e.target.value); setFileConfigs(nf);
+                      const nf = [...fileConfigs]; nf[idx].rounds = Number(e.target.value); setFileConfigs(nf); syncStateToServer({ fileConfigs: nf });
                     }} style={{ flex: 1, background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px' }}>
                       <option value="16">16 Rounds Data</option>
                       <option value="32">32 Rounds Data</option>
                       <option value="64">64 Rounds Data</option>
                     </select>
                     <input type="number" min="0" max="100" value={fc.weight} onChange={e => {
-                      const nf = [...fileConfigs]; nf[idx].weight = Number(e.target.value); setFileConfigs(nf);
+                      const nf = [...fileConfigs]; nf[idx].weight = Number(e.target.value); setFileConfigs(nf); syncStateToServer({ fileConfigs: nf });
                     }} style={{ width: '70px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px', textAlign: 'center' }} />
                   </div>
                 ))}
@@ -592,19 +630,19 @@ export default function Home() {
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Lineups</label>
-                    <input type="number" value={numLineups} onChange={e => setNumLineups(Number(e.target.value))} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups: Number(e.target.value), maxExposure, minUniques, minSalary, maxSalary } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Global Exp %</label>
-                    <input type="number" value={maxExposure} onChange={e => setMaxExposure(Number(e.target.value))} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure: Number(e.target.value), minUniques, minSalary, maxSalary } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label>
-                    <input type="number" value={minSalary} onChange={e => setMinSalary(Number(e.target.value))} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary: Number(e.target.value), maxSalary } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Max Salary</label>
-                    <input type="number" value={maxSalary} onChange={e => setMaxSalary(Number(e.target.value))} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={maxSalary} onChange={e => { setMaxSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary, maxSalary: Number(e.target.value) } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Min Uniques</label>
-                    <input type="number" value={minUniques} onChange={e => setMinUniques(Number(e.target.value))} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={minUniques} onChange={e => { setMinUniques(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques: Number(e.target.value), minSalary, maxSalary } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                 </div>
                 
@@ -622,7 +660,7 @@ export default function Home() {
                         max="100"
                         step="1"
                         value={safetyWeight}
-                        onChange={(e) => setSafetyWeight(Number(e.target.value))}
+                        onChange={(e) => { setSafetyWeight(Number(e.target.value)); syncStateToServer({ safetyWeight: Number(e.target.value) } })}
                         style={{ width: '100%', accentColor: '#10b981' }}
                       />
                       <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '4px' }}>
