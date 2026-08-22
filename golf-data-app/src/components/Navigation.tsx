@@ -115,7 +115,7 @@ export function Navigation({ tabs, setTabs, activeTabIdx, setActiveTabIdx }: any
               }}
               title="Rename Tab"
             >
-              ?
+              Edit
             </button>
             {tabs.length > 1 && (
               <button
@@ -127,7 +127,7 @@ export function Navigation({ tabs, setTabs, activeTabIdx, setActiveTabIdx }: any
                 }}
                 title="Delete Tab"
               >
-                ?
+              X
               </button>
             )}
           </div>
