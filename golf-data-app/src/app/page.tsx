@@ -88,6 +88,8 @@ export default function Home() {
     { rounds: 64, weight: 34 }
   ]);
   const [isGptRunning, setIsGptRunning] = useState(false);
+  const [isGptLineupsOpen, setIsGptLineupsOpen] = useState(false);
+  const [isGptLineupsRunning, setIsGptLineupsRunning] = useState(false);
   const [gptCompleted, setGptCompleted] = useState(false);
   
   // AI Weight Adjuster States
@@ -405,6 +407,60 @@ export default function Home() {
       alert("Request failed: " + e.message);
     } finally {
       setIsGptRunning(false);
+    }
+  };
+
+  const generateGptLineups = async () => {
+    setIsGptLineupsRunning(true);
+    try {
+      const gptPayload = players.map(p => {
+        const payload: any = { name: p.name, salary: p.salary };
+        fileConfigs.forEach((c, i) => {
+          payload[`Dataset${i+1}_${c.rounds}R`] = getWeightedStats(p, c.rounds);
+        });
+        return payload;
+      });
+
+      const res = await fetch('/api/gpt-lineups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          configurations: fileConfigs,
+          fieldData: gptPayload,
+          optimizerSettings: { numLineups, maxExposure, minUniques, minSalary, maxSalary }
+        })
+      });
+      
+      const data = await res.json();
+      if (data.success && data.lineups) {
+        // Apply the generated lineups to the active tab
+        setTabs((prev: any) => {
+          const nt = [...prev];
+          // Transform GPT lineups into the format expected by the lineups page
+          // { id: 1, golfers: [player1, player2, ...] }
+          const processed = data.lineups.map((lu: any) => {
+            return {
+              id: lu.id || Math.random().toString(36).substr(2, 9),
+              golfers: lu.players.map((name: string) => {
+                // Find golfer in players array
+                const golfer = players.find(p => p.name === name || p.name.includes(name) || name.includes(p.name));
+                return golfer || { name: name, salary: 0 };
+              })
+            };
+          });
+          nt[activeTabIdx] = { ...nt[activeTabIdx], lineups: processed };
+          syncStateToServer({ tabs: nt });
+          return nt;
+        });
+        router.push('/lineups');
+      } else {
+        alert("GPT Error: " + (data.error || "Unknown error"));
+      }
+    } catch (e: any) {
+      alert("Request failed: " + e.message);
+    } finally {
+      setIsGptLineupsRunning(false);
     }
   };
 
