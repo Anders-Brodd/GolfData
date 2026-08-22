@@ -375,7 +375,7 @@ export default function Home() {
     setIsGptRunning(true);
     try {
       const gptPayload = players.map(p => {
-        const payload: any = { name: p.name };
+        const payload: any = { name: p.name, salary: p.salary };
         fileConfigs.forEach((c, i) => {
           payload[`Dataset${i+1}_${c.rounds}R`] = getWeightedStats(p, c.rounds);
         });
