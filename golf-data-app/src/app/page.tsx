@@ -44,7 +44,9 @@ const DEFAULT_WEIGHTS = {
 
 let syncTimeout: NodeJS.Timeout;
 let pendingSync: any = {};
+let lastLocalUpdate = 0;
 const syncStateToServer = (updates: any) => {
+  lastLocalUpdate = Date.now();
   Object.assign(pendingSync, updates);
   clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
@@ -109,6 +111,7 @@ export default function Home() {
           const res = await fetch('/api/app-state');
           const data = await res.json();
           if (data.success && data.state) {
+            if (Date.now() - lastLocalUpdate < 3000) return;
             const s = data.state;
             if (s.tabs) setTabs(s.tabs);
             if (s.activeTabIdx !== undefined) setActiveTabIdx(s.activeTabIdx);
