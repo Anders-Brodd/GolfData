@@ -660,7 +660,7 @@ export default function Home() {
                         max="100"
                         step="1"
                         value={safetyWeight}
-                        onChange={(e) => { setSafetyWeight(Number(e.target.value)); syncStateToServer({ safetyWeight: Number(e.target.value) } })}
+                        onChange={(e) => { setSafetyWeight(Number(e.target.value)); syncStateToServer({ safetyWeight: Number(e.target.value) }); }}
                         style={{ width: '100%', accentColor: '#10b981' }}
                       />
                       <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '4px' }}>
