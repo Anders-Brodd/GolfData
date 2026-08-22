@@ -14,7 +14,7 @@ jobs:
         with:
           host: 103.54.59.105
           username: root
-          key: ${{ secrets.SERVER_SSH_KEY }}
+          password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             cd /root/GolfData/golf-data-app
             git fetch origin main
