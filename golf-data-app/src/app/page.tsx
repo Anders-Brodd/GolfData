@@ -718,8 +718,8 @@ export default function Home() {
 
               <div style={{ overflowX: 'auto', background: '#111', border: '1px solid #333', borderRadius: '8px', maxHeight: '75vh', overflowY: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                  <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-                    <tr style={{ background: '#0a0a0a' }}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
+                    <tr style={{ background: 'rgba(10, 10, 10, 0.85)' }}>
                       {!gptCompleted ? (
                         <>
                           <th colSpan={1} style={{ borderRight: '4px solid #555', padding: '8px', textAlign: 'center', color: 'white', WebkitTextStroke: '1px #888', fontSize: '1.1rem', letterSpacing: '1px' }}>EXCLUDE</th>
@@ -740,7 +740,7 @@ export default function Home() {
                     </tr>
                     
                     {!gptCompleted ? (
-                      <tr style={{ background: '#1a1a1a', borderBottom: '2px solid #333' }}>
+                      <tr style={{ background: 'rgba(26, 26, 26, 0.85)', borderBottom: '2px solid #333' }}>
                         <th style={{ padding: '8px', cursor: 'pointer', textAlign: 'center', color: '#ccc', width: '60px' }}>Exclude</th>
                         {renderSortHeader('Golfer', 'name')}
                         {renderSortHeader('Salary', 'salary')}
@@ -769,7 +769,7 @@ export default function Home() {
                         {renderSortHeader('Poor', 'poor_shots')}
                       </tr>
                     ) : (
-                      <tr style={{ background: '#1a1a1a', borderBottom: '2px solid #333' }}>
+                      <tr style={{ background: 'rgba(26, 26, 26, 0.85)', borderBottom: '2px solid #333' }}>
                         <th style={{ padding: '8px', cursor: 'pointer', textAlign: 'center', color: '#ccc', width: '60px' }}>Exclude</th>
                         {renderSortHeader('Bump', 'bump')}
                         {renderSortHeader('Exp %', 'exposure')}
