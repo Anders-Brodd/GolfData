@@ -125,3 +125,21 @@ select {
     --primary-color: color(display-p3 0.12 0.53 0.98);
   }
 }
+/* Custom Scrollbars to match Safari/macOS */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

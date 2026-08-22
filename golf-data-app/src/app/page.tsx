@@ -670,7 +670,33 @@ export default function Home() {
                   <span>{isGptRunning ? 'Processing...' : 'Send to GPT'}</span>
                   {!isGptRunning && <span style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>Est. Cost: ${estCost}</span>}
                 </button>
-                <button onClick={exportPage1ToCSV} style={{ width: '100%', marginTop: '8px', background: '#2563eb', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
+                  <button onClick={() => setIsGptLineupsOpen(!isGptLineupsOpen)} style={{ width: '100%', marginTop: '8px', background: '#ec4899', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
+                    {isGptLineupsOpen ? 'Hide GPT Lineups' : 'GPT Lineups'}
+                  </button>
+                  
+                  {isGptLineupsOpen && (
+                    <div style={{ marginTop: '8px', padding: '12px', background: '#222', borderRadius: '4px', border: '1px solid #333' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                        <div><label style={{ display: 'block', fontSize: '0.7rem', color: '#aaa', marginBottom: '2px' }}>Lineups</label>
+                          <input type="number" value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups: Number(e.target.value), maxExposure, minUniques, minSalary, maxSalary } }); }} style={{ width: '100%', padding: '6px', background: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', fontSize: '0.8rem' }} />
+                        </div>
+                        <div><label style={{ display: 'block', fontSize: '0.7rem', color: '#aaa', marginBottom: '2px' }}>Max Exp %</label>
+                          <input type="number" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure: Number(e.target.value), minUniques, minSalary, maxSalary } }); }} style={{ width: '100%', padding: '6px', background: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', fontSize: '0.8rem' }} />
+                        </div>
+                        <div><label style={{ display: 'block', fontSize: '0.7rem', color: '#aaa', marginBottom: '2px' }}>Min Salary</label>
+                          <input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary: Number(e.target.value), maxSalary } }); }} style={{ width: '100%', padding: '6px', background: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', fontSize: '0.8rem' }} />
+                        </div>
+                        <div><label style={{ display: 'block', fontSize: '0.7rem', color: '#aaa', marginBottom: '2px' }}>Max Salary</label>
+                          <input type="number" value={maxSalary} onChange={e => { setMaxSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary, maxSalary: Number(e.target.value) } }); }} style={{ width: '100%', padding: '6px', background: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', fontSize: '0.8rem' }} />
+                        </div>
+                      </div>
+                      <button onClick={generateGptLineups} disabled={isGptLineupsRunning} style={{ width: '100%', background: '#10b981', color: '#fff', padding: '10px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                        {isGptLineupsRunning ? 'Generating via GPT...' : 'Continue'}
+                      </button>
+                    </div>
+                  )}
+
+                  <button onClick={exportPage1ToCSV} style={{ width: '100%', marginTop: '8px', background: '#2563eb', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
                   Export Weighted Stats (CSV)
                 </button>
               </div>
