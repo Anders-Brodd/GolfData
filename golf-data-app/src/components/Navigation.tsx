@@ -71,8 +71,8 @@ export function Navigation({ tabs, setTabs, activeTabIdx, setActiveTabIdx }: any
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
              <button onClick={() => router.push('/')} style={{ background: pathname === '/' ? '#222' : 'transparent', color: '#fff', border: '1px solid #333', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Player Grid</button>
-             <button onClick={() => router.push('/settings')} style={{ background: pathname === '/settings' ? '#222' : 'transparent', color: '#fff', border: '1px solid #333', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Settings & Data</button>
-             <button onClick={() => router.push('/lineups')} style={{ background: pathname === '/lineups' ? '#222' : 'transparent', color: '#fff', border: '1px solid #333', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Lineups</button>
+             
+             {tabs[activeTabIdx]?.lineups?.length > 0 && (<button onClick={() => router.push('/lineups')} style={{ background: pathname === '/lineups' ? '#222' : 'transparent', color: '#fff', border: '1px solid #333', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Lineups</button>)}
           </div>
         </div>
         
