@@ -630,19 +630,19 @@ export default function Home() {
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Lineups</label>
-                    <input type="number" value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups: Number(e.target.value), maxExposure, minUniques, minSalary, maxSalary } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups: Number(e.target.value), maxExposure, minUniques, minSalary, maxSalary } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Global Exp %</label>
-                    <input type="number" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure: Number(e.target.value), minUniques, minSalary, maxSalary } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure: Number(e.target.value), minUniques, minSalary, maxSalary } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Min Salary</label>
-                    <input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary: Number(e.target.value), maxSalary } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary: Number(e.target.value), maxSalary } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Max Salary</label>
-                    <input type="number" value={maxSalary} onChange={e => { setMaxSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary, maxSalary: Number(e.target.value) } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={maxSalary} onChange={e => { setMaxSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary, maxSalary: Number(e.target.value) } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                   <div><label style={{ display: 'block', fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>Min Uniques</label>
-                    <input type="number" value={minUniques} onChange={e => { setMinUniques(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques: Number(e.target.value), minSalary, maxSalary } })} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
+                    <input type="number" value={minUniques} onChange={e => { setMinUniques(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques: Number(e.target.value), minSalary, maxSalary } }); }} style={{ width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }} />
                   </div>
                 </div>
                 
