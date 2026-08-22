@@ -11,60 +11,38 @@ export async function POST(request: Request) {
 
     let prompt = `You are the Brodd DFS Golf Player Scoring Engine.
 Your job is NOT to build DraftKings lineups.
-Your job is to take the supplied CSV data and produce a PLAYER SCORE and VALUE SCORE (not needed, we calculate value downstream) for every player.
 
 ## CRITICAL RULE
-The supplied datasets have already been weighted by the Brodd system.
-Do NOT create your own weights. Do NOT re-weight the datasets.
-Your job is to interpret the evidence contained in the datasets and translate it into a consistent player score.
+The supplied datasets have already been strictly weighted by the user based on internal metrics AND by the timeframes they selected. The data provided in "Combined_Final_Stats" is the mathematically perfect weighted representation of the player.
+Your job is to interpret this evidence and translate it into consistent scores.
 
-# 1. PLAYER SCORE (0-100)
-Represents the player's overall DFS attractiveness based solely on the supplied Brodd data.
+# 1. PLAYER SCORE (1-100)
+Represents the player's overall quality based strictly on their Combined_Final_Stats.
 100 = elite, 90-99 = exceptional, 80-89 = strong, 70-79 = above avg, 60-69 = playable, 50-59 = marginal, Below 50 = weak.
-The score should represent the quality of the player according to the data, NOT salary value. 
-Never allow salary to artificially inflate the Player Score. Keep those concepts separate.
+Keep salary out of the Player Score.
 
-# 2. HOW TO INTERPRET MULTIPLE DATASETS
-Look for agreement across the datasets. A player becomes more trustworthy when multiple datasets independently support him.
-Improvement over time should increase confidence. Decline should reduce confidence.
+# 2. VALUE SCORE (1-100)
+Calculate the player's value relative to their salary. A score of 100 means they are extremely underpriced for their skill. A score of 1 means they are vastly overpriced.
 
-# 3. BALL STRIKING VS PUTTING
-Place particular analytical emphasis on Ball Striking (SG:T2G, SG:APP, SG:OTT). Ball striking should generally carry more interpretive importance than putting when evaluating whether performance is sustainable.
-Putting is volatile. Strong ball striking + weak putting = hidden upside. Weak ball striking + strong putting = regression risk.
+# 3. FINAL RANKING (1-100)
+Produce a Final Ranking from 1 to 100 based heavily on the Player Score and Value, but ALSO adjust it based on their Wind, Tee Time, and user Bump.
+- Wind: Higher wind = penalty.
+- Bump: A positive bump should increase their final ranking.
 
-# 4. MISPRICING
-Identify players where Player Score is substantially stronger than their salary would suggest.
-Create a MISPRICING FLAG: ELITE, STRONG, MODERATE, NONE, OVERPRICED.
+# 4. CONFIDENCE & MISPRICING
+- CONFIDENCE (1-100): How strongly the individual timeframe datasets agree.
+- MISPRICING: ELITE, STRONG, MODERATE, NONE, OVERPRICED based on their value.
 
-# 5. CONFIDENCE (0-100)
-Provide a CONFIDENCE SCORE (0-100).
-Player Score answers: How good is the player?
-Confidence answers: How strongly do the datasets agree with that conclusion?
-
-Data Weights to consider for player quality:
-`;
-
-    configurations.forEach((c: any) => {
-      prompt += `- ${c.rounds} Rounds History, Weight: ${c.weight}%
-`;
-    });
-
-    prompt += `
-Output your predictions strictly as a JSON object where the keys are the exact player names provided, and the values are objects containing "score", "confidence", "mispricing", and "reason".
-Do not include any other text, markdown formatting, or explanations. Just the JSON object.
+Output your predictions strictly as a JSON object where the keys are the exact player names provided, and the values are objects containing "score", "value", "final_ranking", "confidence", "mispricing", and "reason".
 Example:
 {
   "Scottie Scheffler": {
     "score": 96.5,
+    "value": 85.0,
+    "final_ranking": 97.2,
     "confidence": 94.0,
     "mispricing": "MODERATE",
-    "reason": "Elite ball striking across all timeframes."
-  },
-  "Rory McIlroy": {
-    "score": 92.1,
-    "confidence": 88.5,
-    "mispricing": "NONE",
-    "reason": "Strong data but perfectly priced."
+    "reason": "Elite ball striking and strong value despite high salary."
   }
 }`;
 
@@ -76,8 +54,15 @@ Example:
     let userData = "Data:\n";
     
     fieldData.forEach((p: any) => {
-      userData += `${p.name} ($${p.salary}): `;
+      userData += `${p.name} (Sal:$${p.salary}, Wind:${p.wind}, Bump:${p.bump}): `;
       const datasets: string[] = [];
+      
+      const combined = p.Combined_Final_Stats || {};
+      const combStr = Object.entries(combined)
+           .map(([k, v]) => `${shortKeys[k] || k}:${Number(v).toFixed(1)}`)
+           .join(',');
+      if (combStr) datasets.push(`COMBINED(${combStr})`);
+      
       configurations.forEach((c: any, i: number) => {
         const stats = p[`Dataset${i+1}_${c.rounds}R`] || {};
         const statStr = Object.entries(stats)

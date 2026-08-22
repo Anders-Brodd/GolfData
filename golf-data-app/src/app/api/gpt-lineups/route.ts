@@ -10,23 +10,17 @@ export async function POST(request: Request) {
     }
 
     let prompt = `You are an expert PGA DFS Lineup Optimizer.
-I am providing you with statistical data and salaries for the field of an upcoming golf tournament.
+I am providing you with enriched statistical data and salaries for the field of an upcoming golf tournament.
+The players have already been rigorously analyzed by our internal scoring engine. The most important metric is "final_ranking", which represents their overall DFS value from 1 to 100 based on their stats, salary, wind, teetimes, and user adjustments.
 You must analyze this data and generate exactly ${optimizerSettings.numLineups} DraftKings lineups.
+
 Rules for DraftKings Golf Lineups:
 1. Exactly 6 players per lineup.
 2. Total salary of the 6 players must be <= ${optimizerSettings.maxSalary} and >= ${optimizerSettings.minSalary}.
 3. No duplicate players in the same lineup.
-4. Try to adhere to a max exposure of ${optimizerSettings.maxExposure}% for any single player across all lineups if possible.
+4. Maximize the combined "final_ranking" of the lineups you build.
+5. Adhere to a max exposure of ${optimizerSettings.maxExposure}% for any single player across all lineups if possible.
 
-Data Weights to consider for player quality:
-`;
-
-    configurations.forEach((c: any) => {
-      prompt += `- ${c.rounds} Rounds History, Weight: ${c.weight}%
-`;
-    });
-
-    prompt += `
 Output your lineups strictly as a JSON object with a "lineups" key containing an array of lineup objects. Each lineup object should have an "id" and a "players" array containing exactly 6 player names.
 Do not include any other text, markdown formatting, or explanations. Just the JSON object.
 Example:
@@ -39,24 +33,11 @@ Example:
   ]
 }`;
 
-    const shortKeys: Record<string, string> = {
-      'sgOTT': 'ott', 'sgAPP': 'app', 'sgARG': 'arg', 'sgPUTT': 'putt', 'sgT2G': 't2g', 'sgBS': 'bs', 'sgTotal': 'tot',
-      'eob': 'eob', 'bob': 'bob', 'pob': 'pob', 'ba': 'ba', 'driving_dist': 'dd', 'driving_acc': 'da', 'gir': 'gir', 'scrambling': 'scrm', 'prox_fw': 'pxf'
-    };
-
     let userData = "Data:\n";
     
     fieldData.forEach((p: any) => {
-      userData += `${p.name} ($${p.salary}): `;
-      const datasets: string[] = [];
-      configurations.forEach((c: any, i: number) => {
-        const stats = p[`Dataset${i+1}_${c.rounds}R`] || {};
-        const statStr = Object.entries(stats)
-           .map(([k, v]) => `${shortKeys[k] || k}:${Number(v).toFixed(1)}`)
-           .join(',');
-        if (statStr) datasets.push(`${c.rounds}R(${statStr})`);
-      });
-      userData += datasets.join(' | ') + '\n';
+      userData += `${p.name} (Sal:$${p.salary}, FinalRank:${p.final_ranking}, Value:${p.value_score}, Score:${p.gpt_score}, Wind:${p.wind}, TT:${p.teetime})
+`;
     });
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {

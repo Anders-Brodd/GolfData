@@ -237,18 +237,9 @@ export default function Home() {
   const getActiveStats = (p: GolferStats): SGStats => p[`stats${viewRounds}` as keyof GolferStats] as SGStats || p.stats32 || {};
 
   const getFinalProj = (p: GolferStats) => {
-    const baseGpt = p.gptScore || 0;
-    const safety = safetyWeight / 100;
-    const blended = (baseGpt * (1 - safety)) + ((p.projection || 0) * safety);
-    
-    // Apply wind penalty (up to 10% penalty for 35km/h+ wind)
-    const windSpeed = p.wind || 0;
-    const penaltyPct = Math.min(windSpeed / 35, 1) * 0.10;
-    const adjusted = blended * (1 - penaltyPct);
-    
-    return adjusted + (playerOverrides[p.id]?.bump || 0);
+    return p.gptFinalRanking || p.gptScore || 0;
   };
-  const getValue = (p: GolferStats) => p.salary ? (p.gptScore || 0) / (p.salary / 1000) : 0;
+  const getValue = (p: GolferStats) => p.gptValue || (p.salary ? (p.gptScore || 0) / (p.salary / 1000) : 0);
 
   const getWeightedStats = (p: GolferStats, rounds: number) => {
     const raw = p[`stats${rounds}` as keyof GolferStats] as any || {};
@@ -331,6 +322,8 @@ export default function Home() {
       else if (sortConfig.key === 'bump') { va = playerOverrides[a.id]?.bump || 0; vb = playerOverrides[b.id]?.bump || 0; }
       else if (sortConfig.key === 'exposure') { va = playerOverrides[a.id]?.exposure || 0; vb = playerOverrides[b.id]?.exposure || 0; }
       else if (sortConfig.key === 'gptScore') { va = a.gptScore || 0; vb = b.gptScore || 0; }
+        else if (sortConfig.key === 'gptConfidence') { va = a.gptConfidence || 0; vb = b.gptConfidence || 0; }
+        else if (sortConfig.key === 'gptMispricing') { va = a.gptMispricing || ''; vb = b.gptMispricing || ''; }
       else if (sortConfig.key === 'gptValue') { va = getValue(a); vb = getValue(b); }
       else if (sortConfig.key === 'finalProj') { va = getFinalProj(a); vb = getFinalProj(b); }
       else if (sortConfig.key === 'teetime') { return sortConfig.direction === 'asc' ? String(a.teetime||'').localeCompare(String(b.teetime||'')) : String(b.teetime||'').localeCompare(String(a.teetime||'')); }
@@ -375,10 +368,26 @@ export default function Home() {
     setIsGptRunning(true);
     try {
       const gptPayload = players.map(p => {
-        const payload: any = { name: p.name, salary: p.salary };
+        const payload: any = { 
+          name: p.name, 
+          salary: p.salary,
+          teetime: p.teetime || '',
+          wind: p.wind || 0,
+          bump: playerOverrides[p.id]?.bump || 0
+        };
+        
+        const combinedStats: any = {};
+        
         fileConfigs.forEach((c, i) => {
-          payload[`Dataset${i+1}_${c.rounds}R`] = getWeightedStats(p, c.rounds);
+          const wStats = getWeightedStats(p, c.rounds);
+          payload[`Dataset${i+1}_${c.rounds}R`] = wStats;
+          
+          for (const key of Object.keys(wStats)) {
+            combinedStats[key] = (combinedStats[key] || 0) + (wStats[key] * (c.weight / 100));
+          }
         });
+        
+        payload.Combined_Final_Stats = combinedStats;
         return payload;
       });
 
@@ -395,10 +404,19 @@ export default function Home() {
       
       if (data.success && data.predictions) {
         const pMap = data.predictions;
-        setPlayers(prev => prev.map(p => ({
-          ...p,
-          gptScore: pMap[p.name] !== undefined ? Number(pMap[p.name]) : (pMap[p.name.split(' ')[0]] || p.projection)
-        })));
+        setPlayers(prev => prev.map(p => {
+            const match = pMap[p.name] || pMap[p.name.split(' ')[0]];
+            const gptScore = match ? (typeof match === 'object' ? Number(match.score) : Number(match)) : p.projection;
+            return {
+              ...p,
+              gptScore,
+              gptValue: match && typeof match === 'object' ? match.value : undefined,
+              gptFinalRanking: match && typeof match === 'object' ? match.final_ranking : undefined,
+              gptConfidence: match && typeof match === 'object' ? match.confidence : undefined,
+              gptMispricing: match && typeof match === 'object' ? match.mispricing : undefined,
+              gptReason: match && typeof match === 'object' ? match.reason : undefined
+            };
+          }));
         setGptCompleted(true);
       } else {
         alert("GPT Error: " + (data.error || "Unknown error"));
@@ -413,11 +431,31 @@ export default function Home() {
   const generateGptLineups = async () => {
     setIsGptLineupsRunning(true);
     try {
-      const gptPayload = players.map(p => {
-        const payload: any = { name: p.name, salary: p.salary };
+      const activePool = players.filter(p => !playerOverrides[p.id]?.exclude && p.salary > 0);
+      const gptPayload = activePool.map(p => {
+        const payload: any = { 
+          name: p.name, 
+          salary: p.salary,
+          final_ranking: getFinalProj(p).toFixed(2),
+          gpt_score: p.gptScore,
+          value_score: getValue(p).toFixed(2),
+          teetime: p.teetime || '',
+          wind: p.wind || 0,
+          bump: playerOverrides[p.id]?.bump || 0
+        };
+        
+        const combinedStats: any = {};
+        
         fileConfigs.forEach((c, i) => {
-          payload[`Dataset${i+1}_${c.rounds}R`] = getWeightedStats(p, c.rounds);
+          const wStats = getWeightedStats(p, c.rounds);
+          payload[`Dataset${i+1}_${c.rounds}R`] = wStats;
+          
+          for (const key of Object.keys(wStats)) {
+            combinedStats[key] = (combinedStats[key] || 0) + (wStats[key] * (c.weight / 100));
+          }
         });
+        
+        payload.Combined_Final_Stats = combinedStats;
         return payload;
       });
 
@@ -670,31 +708,6 @@ export default function Home() {
                   <span>{isGptRunning ? 'Processing...' : 'Send to GPT'}</span>
                   {!isGptRunning && <span style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>Est. Cost: ${estCost}</span>}
                 </button>
-                  <button onClick={() => setIsGptLineupsOpen(!isGptLineupsOpen)} style={{ width: '100%', marginTop: '8px', background: '#ec4899', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
-                    {isGptLineupsOpen ? 'Hide GPT Lineups' : 'GPT Lineups'}
-                  </button>
-                  
-                  {isGptLineupsOpen && (
-                    <div style={{ marginTop: '8px', padding: '12px', background: '#222', borderRadius: '4px', border: '1px solid #333' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                        <div><label style={{ display: 'block', fontSize: '0.7rem', color: '#aaa', marginBottom: '2px' }}>Lineups</label>
-                          <input type="number" value={numLineups} onChange={e => { setNumLineups(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups: Number(e.target.value), maxExposure, minUniques, minSalary, maxSalary } }); }} style={{ width: '100%', padding: '6px', background: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', fontSize: '0.8rem' }} />
-                        </div>
-                        <div><label style={{ display: 'block', fontSize: '0.7rem', color: '#aaa', marginBottom: '2px' }}>Max Exp %</label>
-                          <input type="number" value={maxExposure} onChange={e => { setMaxExposure(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure: Number(e.target.value), minUniques, minSalary, maxSalary } }); }} style={{ width: '100%', padding: '6px', background: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', fontSize: '0.8rem' }} />
-                        </div>
-                        <div><label style={{ display: 'block', fontSize: '0.7rem', color: '#aaa', marginBottom: '2px' }}>Min Salary</label>
-                          <input type="number" value={minSalary} onChange={e => { setMinSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary: Number(e.target.value), maxSalary } }); }} style={{ width: '100%', padding: '6px', background: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', fontSize: '0.8rem' }} />
-                        </div>
-                        <div><label style={{ display: 'block', fontSize: '0.7rem', color: '#aaa', marginBottom: '2px' }}>Max Salary</label>
-                          <input type="number" value={maxSalary} onChange={e => { setMaxSalary(Number(e.target.value)); syncStateToServer({ optimizerSettings: { numLineups, maxExposure, minUniques, minSalary, maxSalary: Number(e.target.value) } }); }} style={{ width: '100%', padding: '6px', background: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', fontSize: '0.8rem' }} />
-                        </div>
-                      </div>
-                      <button onClick={generateGptLineups} disabled={isGptLineupsRunning} style={{ width: '100%', background: '#10b981', color: '#fff', padding: '10px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                        {isGptLineupsRunning ? 'Generating via GPT...' : 'Continue'}
-                      </button>
-                    </div>
-                  )}
 
                   <button onClick={exportPage1ToCSV} style={{ width: '100%', marginTop: '8px', background: '#2563eb', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
                   Export Weighted Stats (CSV)
@@ -744,9 +757,14 @@ export default function Home() {
                 </div>
                 
                 <hr style={{ borderColor: '#333', margin: '20px 0' }} />
-                <button onClick={generateLineups} disabled={isGenerating} style={{ width: '100%', background: '#3b82f6', color: '#fff', padding: '16px', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                  {isGenerating ? 'Generating...' : `Generate ${numLineups} Lineups →`}
-                </button>
+                  <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                    <button onClick={generateLineups} disabled={isGenerating} style={{ width: '100%', background: '#3b82f6', color: '#fff', padding: '16px', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                      {isGenerating ? 'Generating...' : `Generate ${numLineups} (App)`}
+                    </button>
+                    <button onClick={generateGptLineups} disabled={isGptLineupsRunning} style={{ width: '100%', background: '#ec4899', color: '#fff', padding: '16px', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                      {isGptLineupsRunning ? 'Generating...' : `Generate ${numLineups} (GPT)`}
+                    </button>
+                  </div>
               </div>
             </>
           )}
@@ -849,9 +867,11 @@ export default function Home() {
                         {renderSortHeader('Tee Time', 'teetime')}
                         {renderSortHeader('Wind', 'wind')}
                         
-                        {renderSortHeader('GPT Score', 'gptScore')}
-                        {renderSortHeader('GPT Value', 'gptValue')}
-                        {renderSortHeader('Final Proj', 'finalProj')}
+                        {renderSortHeader('Score', 'gptScore')}
+                          {renderSortHeader('Conf', 'gptConfidence')}
+                          {renderSortHeader('Value', 'gptValue')}
+                          {renderSortHeader('Misprice', 'gptMispricing')}
+                          {renderSortHeader('Final Proj', 'finalProj')}
                       </tr>
                     )}
                   </thead>
@@ -912,12 +932,18 @@ export default function Home() {
                               <td style={{ padding: '8px', color: '#aaa', textAlign: 'center' }}>{typeof p.teetime === 'string' ? p.teetime.substring(11, 16) : '-'}</td>
                               <td style={{ padding: '8px', borderRight: '4px solid #555', color: '#3b82f6', textAlign: 'center' }}>{p.wind ? `${p.wind} km/h` : '-'}</td>
                               
-                              <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', color: hasGpt ? '#22c55e' : '#555' }}>
-                                {hasGpt ? (typeof p.gptScore === 'number' ? p.gptScore : Number(p.gptScore) || 0).toFixed(2) : '-'}
-                              </td>
-                              <td style={{ padding: '8px', textAlign: 'center', color: hasGpt ? '#aaa' : '#555' }}>
-                                {hasGpt ? getValue(p).toFixed(2) : '-'}
-                              </td>
+                              <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', color: hasGpt ? '#22c55e' : '#555' }} title={p.gptReason || ''}>
+                                  {hasGpt ? (typeof p.gptScore === 'number' ? p.gptScore : Number(p.gptScore) || 0).toFixed(2) : '-'}
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'center', color: hasGpt ? (p.gptConfidence >= 90 ? '#22c55e' : p.gptConfidence >= 75 ? '#eab308' : '#ef4444') : '#555' }}>
+                                  {hasGpt && p.gptConfidence ? p.gptConfidence.toFixed(1) : '-'}
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'center', color: hasGpt ? '#aaa' : '#555' }}>
+                                  {hasGpt ? getValue(p).toFixed(2) : '-'}
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'center', fontSize: '0.85rem', color: hasGpt ? (p.gptMispricing === 'ELITE' ? '#a855f7' : p.gptMispricing === 'STRONG' ? '#22c55e' : p.gptMispricing === 'OVERPRICED' ? '#ef4444' : '#aaa') : '#555' }}>
+                                  {hasGpt ? (p.gptMispricing || '-') : '-'}
+                                </td>
                               <td style={{ padding: '8px', borderRight: '4px solid #555', textAlign: 'center', color: '#fff', fontWeight: 'bold', background: '#112211' }}>
                                 {hasGpt ? getFinalProj(p).toFixed(2) : '-'}
                               </td>
