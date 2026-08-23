@@ -359,7 +359,7 @@ export default function Home() {
     }
 
     setIsGptRunning(true);
-    setGptStatusText('Analyzing data with gpt-5.6-sol (High Reasoning)...');
+    setGptStatusText('Analyzing data with gpt-5.6-sol (Low Reasoning)...');
     try {
       const gptPayload = players.map(p => {
         const payload: any = { 

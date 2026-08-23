@@ -81,7 +81,7 @@ Example:
       },
       body: JSON.stringify({
         model: model || 'gpt-5.6-sol',
-        reasoning_effort: "high",
+        reasoning_effort: "low",
         messages: [
           { role: 'system', content: prompt },
           { role: 'user', content: userData }
