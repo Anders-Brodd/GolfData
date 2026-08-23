@@ -564,10 +564,43 @@ export default function Home() {
     window.URL.revokeObjectURL(url);
   };
 
+  const DESCRIPTIONS: Record<string, string> = {
+    name: "Golfer's name",
+    salary: "DraftKings Salary",
+    sgOTT: "Strokes Gained: Off The Tee - Performance off the tee box.",
+    sgAPP: "Strokes Gained: Approach - Performance on shots into the green.",
+    sgARG: "Strokes Gained: Around The Green - Performance on chips and pitches.",
+    sgPUTT: "Strokes Gained: Putting - Performance on the putting surface.",
+    sgT2G: "Strokes Gained: Tee to Green - Overall performance excluding putting.",
+    sgBS: "Strokes Gained: Ball Striking - Sum of Off The Tee and Approach.",
+    sgTotal: "Strokes Gained: Total - Overall performance compared to the field.",
+    eob: "Eagle or Better % - How often the golfer scores an eagle or better.",
+    bob: "Birdie or Better % - How often the golfer scores a birdie or better.",
+    pob: "Par or Better % - How often the golfer avoids a bogey.",
+    ba: "Bogey Avoidance - Lower is better. % of holes with a bogey or worse.",
+    driving_dist: "Driving Distance - Average length of drives (yards).",
+    driving_acc: "Driving Accuracy - % of fairways hit off the tee.",
+    gir: "Greens in Regulation - % of greens hit in the expected number of strokes.",
+    scrambling: "Scrambling - % of times saving par after missing the green.",
+    prox_fw: "Proximity from Fairway - Average distance to the hole from the fairway.",
+    prox_rgh: "Proximity from Rough - Average distance to the hole from the rough.",
+    great_shots: "Great Shots - Shots that significantly beat the field average.",
+    poor_shots: "Poor Shots - Shots that significantly fall behind the field average.",
+    bump: "Manual Bump - Your custom adjustment to the final projection.",
+    exposure: "Max Exposure % - Maximum % of lineups this golfer can appear in.",
+    teetime: "Tee Time - The golfer's starting time.",
+    wind: "Wind Speed - Expected wind speed during their round.",
+    gptScore: "GPT Score (1-100) - AI's rating of raw skill based on weighted stats.",
+    gptConfidence: "GPT Confidence (1-100) - Consistency across the 16, 32, and 64 round timeframes.",
+    gptValue: "GPT Value (1-100) - AI's rating of salary vs expected performance.",
+    gptMispricing: "GPT Mispricing (1-100) - 1 is extremely overpriced, 100 is extremely underpriced.",
+    finalProj: "Final Projection (1-100) - AI's ultimate ranking incorporating Score, Value, Wind, Tee Time, and Bumps."
+  };
+
   const renderSortHeader = (label: string, key: string) => {
     const isAct = sortConfig.key === key;
     return (
-      <th onClick={() => handleSort(key)} style={{ padding: '8px', cursor: 'pointer', userSelect: 'none', background: isAct ? '#222' : 'transparent', borderRight: '1px solid #333' }}>
+      <th title={DESCRIPTIONS[key] || label} onClick={() => handleSort(key)} style={{ padding: '8px', cursor: 'pointer', userSelect: 'none', background: isAct ? '#222' : 'transparent', borderRight: '1px solid #333' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
           {label} {isAct ? (sortConfig.direction === 'desc' ? '↓' : '↑') : '↕'}
         </div>
