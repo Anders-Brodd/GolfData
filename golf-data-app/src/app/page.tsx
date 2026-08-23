@@ -758,7 +758,7 @@ export default function Home() {
                 
                 <hr style={{ borderColor: '#333', margin: '20px 0' }} />
                                       <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
-                      <button onClick={generateGptLineups} disabled={isGptLineupsRunning} style={{ width: '100%', background: '#3b82f6', color: '#fff', padding: '16px', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                                            <button onClick={generateGptLineups} disabled={isGptLineupsRunning} style={{ width: '100%', background: '#10b981', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
                         {isGptLineupsRunning ? 'Generating...' : 'Generate'}
                       </button>
                     </div>
