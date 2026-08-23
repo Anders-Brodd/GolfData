@@ -757,14 +757,11 @@ export default function Home() {
                 </div>
                 
                 <hr style={{ borderColor: '#333', margin: '20px 0' }} />
-                  <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
-                    <button onClick={generateLineups} disabled={isGenerating} style={{ width: '100%', background: '#3b82f6', color: '#fff', padding: '16px', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                      {isGenerating ? 'Generating...' : `Generate ${numLineups} (App)`}
-                    </button>
-                    <button onClick={generateGptLineups} disabled={isGptLineupsRunning} style={{ width: '100%', background: '#ec4899', color: '#fff', padding: '16px', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                      {isGptLineupsRunning ? 'Generating...' : `Generate ${numLineups} (GPT)`}
-                    </button>
-                  </div>
+                                      <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                      <button onClick={generateGptLineups} disabled={isGptLineupsRunning} style={{ width: '100%', background: '#3b82f6', color: '#fff', padding: '16px', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                        {isGptLineupsRunning ? 'Generating...' : 'Generate'}
+                      </button>
+                    </div>
               </div>
             </>
           )}
