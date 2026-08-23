@@ -31,7 +31,7 @@ Produce a Final Ranking from 1 to 100 based heavily on the Player Score and Valu
 
 # 4. CONFIDENCE & MISPRICING
 - CONFIDENCE (1-100): How strongly the individual timeframe datasets agree.
-- MISPRICING: ELITE, STRONG, MODERATE, NONE, OVERPRICED based on their value.
+- MISPRICING (1-100): 1 being extremely overpriced, 100 being extremely underpriced.
 
 Output your predictions strictly as a JSON object where the keys are the exact player names provided, and the values are objects containing "score", "value", "final_ranking", "confidence", "mispricing", and "reason".
 Example:
@@ -41,7 +41,7 @@ Example:
     "value": 85.0,
     "final_ranking": 97.2,
     "confidence": 94.0,
-    "mispricing": "MODERATE",
+    "mispricing": 65.0,
     "reason": "Elite ball striking and strong value despite high salary."
   }
 }`;

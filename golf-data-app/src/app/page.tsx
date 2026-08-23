@@ -316,7 +316,7 @@ export default function Home() {
       else if (sortConfig.key === 'exposure') { va = playerOverrides[a.id]?.exposure || 0; vb = playerOverrides[b.id]?.exposure || 0; }
       else if (sortConfig.key === 'gptScore') { va = a.gptScore || 0; vb = b.gptScore || 0; }
         else if (sortConfig.key === 'gptConfidence') { va = a.gptConfidence || 0; vb = b.gptConfidence || 0; }
-        else if (sortConfig.key === 'gptMispricing') { va = a.gptMispricing || ''; vb = b.gptMispricing || ''; }
+        else if (sortConfig.key === 'gptMispricing') { va = Number(a.gptMispricing) || 0; vb = Number(b.gptMispricing) || 0; }
       else if (sortConfig.key === 'gptValue') { va = getValue(a); vb = getValue(b); }
       else if (sortConfig.key === 'finalProj') { va = getFinalProj(a); vb = getFinalProj(b); }
       else if (sortConfig.key === 'teetime') { return sortConfig.direction === 'asc' ? String(a.teetime||'').localeCompare(String(b.teetime||'')) : String(b.teetime||'').localeCompare(String(a.teetime||'')); }
@@ -827,7 +827,7 @@ export default function Home() {
                           <th colSpan={2} style={{ borderRight: '4px solid #555', padding: '8px', textAlign: 'center', color: '#ef4444' }}>OVERRIDES</th>
                           <th colSpan={2} style={{ borderRight: '4px solid #555', padding: '8px', textAlign: 'center', color: 'white', WebkitTextStroke: '1px #888', fontSize: '1.1rem', letterSpacing: '1px' }}>INFO</th>
                           <th colSpan={2} style={{ borderRight: '4px solid #555', padding: '8px', textAlign: 'center', color: '#eab308' }}>ENVIRONMENT</th>
-                          <th colSpan={3} style={{ borderRight: '4px solid #555', padding: '8px', textAlign: 'center', color: '#22c55e' }}>GPT MODEL</th>
+                          <th colSpan={5} style={{ borderRight: '4px solid #555', padding: '8px', textAlign: 'center', color: '#22c55e' }}>GPT MODEL</th>
                         </>
                       )}
                     </tr>
@@ -902,7 +902,7 @@ export default function Home() {
                             </>
                           )}
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>{p.name}</td>
-                          <td style={{ padding: '8px', color: '#22c55e', fontWeight: 'bold', textAlign: 'center' }}>${p.salary || '-'}</td>
+                          <td style={{ padding: '8px', background: p.salary ? getGradient(p.salary, ranges.salary?.min||0, ranges.salary?.max||0, 'salary') : 'transparent', color: p.salary ? '#fff' : '#22c55e', fontWeight: 'bold', textAlign: 'center' }}>${p.salary || '-'}</td>
                           
                           {!gptCompleted ? (() => {
                               const wStats = getDisplayStats(p, Number(viewRounds));
@@ -937,21 +937,21 @@ export default function Home() {
                               <td style={{ padding: '8px', color: '#aaa', textAlign: 'center' }}>{typeof p.teetime === 'string' ? p.teetime.substring(11, 16) : '-'}</td>
                               <td style={{ padding: '8px', borderRight: '4px solid #555', color: '#3b82f6', textAlign: 'center' }}>{p.wind ? `${p.wind} km/h` : '-'}</td>
                               
-                              <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', color: hasGpt ? '#22c55e' : '#555' }} title={p.gptReason || ''}>
-                                  {hasGpt ? (typeof p.gptScore === 'number' ? p.gptScore : Number(p.gptScore) || 0).toFixed(2) : '-'}
+                              <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', background: hasGpt ? getGradient(Number(p.gptScore)||0, ranges.gptScore?.min||0, ranges.gptScore?.max||0, 'score') : 'transparent', color: hasGpt ? '#fff' : '#555' }} title={p.gptReason || ''}>
+                                    {hasGpt ? (Number(p.gptScore) || 0).toFixed(2) : '-'}
+                                  </td>
+                                  <td style={{ padding: '8px', textAlign: 'center', background: (hasGpt && p.gptConfidence) ? getGradient(Number(p.gptConfidence)||0, ranges.gptConfidence?.min||0, ranges.gptConfidence?.max||0, 'score') : 'transparent', color: hasGpt ? '#fff' : '#555' }}>
+                                    {hasGpt && p.gptConfidence ? p.gptConfidence.toFixed(1) : '-'}
+                                  </td>
+                                  <td style={{ padding: '8px', textAlign: 'center', background: hasGpt ? getGradient(getValue(p), ranges.gptValue?.min||0, ranges.gptValue?.max||0, 'score') : 'transparent', color: hasGpt ? '#fff' : '#555' }}>
+                                    {hasGpt ? getValue(p).toFixed(2) : '-'}
+                                  </td>
+                                  <td style={{ padding: '8px', textAlign: 'center', background: hasGpt ? getGradient(Number(p.gptMispricing)||0, ranges.gptMispricing?.min||0, ranges.gptMispricing?.max||0, 'score') : 'transparent', color: hasGpt ? '#fff' : '#555' }}>
+                                    {hasGpt && p.gptMispricing ? Number(p.gptMispricing).toFixed(1) : '-'}
+                                  </td>
+                                <td style={{ padding: '8px', borderRight: '4px solid #555', textAlign: 'center', fontWeight: 'bold', background: hasGpt ? getGradient(getFinalProj(p), ranges.finalProj?.min||0, ranges.finalProj?.max||0, 'score') : 'transparent', color: hasGpt ? '#fff' : '#555' }}>
+                                  {hasGpt ? getFinalProj(p).toFixed(2) : '-'}
                                 </td>
-                                <td style={{ padding: '8px', textAlign: 'center', color: hasGpt ? (p.gptConfidence >= 90 ? '#22c55e' : p.gptConfidence >= 75 ? '#eab308' : '#ef4444') : '#555' }}>
-                                  {hasGpt && p.gptConfidence ? p.gptConfidence.toFixed(1) : '-'}
-                                </td>
-                                <td style={{ padding: '8px', textAlign: 'center', color: hasGpt ? '#aaa' : '#555' }}>
-                                  {hasGpt ? getValue(p).toFixed(2) : '-'}
-                                </td>
-                                <td style={{ padding: '8px', textAlign: 'center', fontSize: '0.85rem', color: hasGpt ? (p.gptMispricing === 'ELITE' ? '#a855f7' : p.gptMispricing === 'STRONG' ? '#22c55e' : p.gptMispricing === 'OVERPRICED' ? '#ef4444' : '#aaa') : '#555' }}>
-                                  {hasGpt ? (p.gptMispricing || '-') : '-'}
-                                </td>
-                              <td style={{ padding: '8px', borderRight: '4px solid #555', textAlign: 'center', color: '#fff', fontWeight: 'bold', background: '#112211' }}>
-                                {hasGpt ? getFinalProj(p).toFixed(2) : '-'}
-                              </td>
                             </>
                           )}
                         </tr>
