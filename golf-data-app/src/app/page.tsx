@@ -702,9 +702,9 @@ export default function Home() {
                       <div style={{ width: '100%', textAlign: 'center' }}>
                         <div style={{ fontSize: '0.75rem', color: '#a855f7', marginBottom: '4px', fontWeight: 'bold' }}>{gptStatusText}</div>
                         <div style={{ width: '100%', background: '#222', height: '4px', borderRadius: '2px', overflow: 'hidden' }}>
-                          <div style={{ width: '100%', height: '100%', background: '#a855f7', animation: 'progress 2s ease-in-out infinite' }}></div>
+                          <div style={{ width: '0%', height: '100%', background: '#a855f7', animation: 'fillUp 120s cubic-bezier(0.1, 0.7, 0.1, 1) forwards' }}></div>
                         </div>
-                        <style>{`@keyframes progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }`}</style>
+                        <style>{`@keyframes fillUp { 0% { width: 0%; } 100% { width: 90%; } }`}</style>
                       </div>
                     )}
                   </div>
@@ -765,7 +765,7 @@ export default function Home() {
                         <div style={{ width: '100%', textAlign: 'center', marginTop: '4px' }}>
                           <div style={{ fontSize: '0.75rem', color: '#10b981', marginBottom: '4px', fontWeight: 'bold' }}>{gptStatusText}</div>
                           <div style={{ width: '100%', background: '#222', height: '4px', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: '100%', height: '100%', background: '#10b981', animation: 'progress 2s ease-in-out infinite' }}></div>
+                            <div style={{ width: '0%', height: '100%', background: '#10b981', animation: 'fillUp 120s cubic-bezier(0.1, 0.7, 0.1, 1) forwards' }}></div>
                           </div>
                         </div>
                       )}
