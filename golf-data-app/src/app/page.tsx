@@ -305,8 +305,23 @@ export default function Home() {
          const v = Number(allStats[key]) || 0;
          if (v < statsRanges[key].min) statsRanges[key].min = v;
          if (v > statsRanges[key].max) statsRanges[key].max = v;
-      }
-    });
+        }
+        
+        const gptKeys = [
+          { key: 'gptScore', val: Number(p.gptScore) || 0 },
+          { key: 'gptConfidence', val: Number(p.gptConfidence) || 0 },
+          { key: 'gptValue', val: getValue(p) },
+          { key: 'gptMispricing', val: Number(p.gptMispricing) || 0 },
+          { key: 'finalProj', val: getFinalProj(p) },
+          { key: 'salary', val: p.salary }
+        ];
+        
+        gptKeys.forEach((obj) => {
+           if (!statsRanges[obj.key]) statsRanges[obj.key] = { min: Infinity, max: -Infinity };
+           if (obj.val < statsRanges[obj.key].min) statsRanges[obj.key].min = obj.val;
+           if (obj.val > statsRanges[obj.key].max) statsRanges[obj.key].max = obj.val;
+        });
+      });
     
     activeList.sort((a, b) => {
       let va = 0, vb = 0;
