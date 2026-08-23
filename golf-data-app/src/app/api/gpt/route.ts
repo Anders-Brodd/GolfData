@@ -80,7 +80,8 @@ Example:
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: model || 'gpt-4o-mini',
+        model: model || 'gpt-5.6-sol',
+        reasoning_effort: "high",
         messages: [
           { role: 'system', content: prompt },
           { role: 'user', content: userData }

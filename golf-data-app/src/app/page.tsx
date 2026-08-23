@@ -26,14 +26,7 @@ type GolferStats = {
   [key: string]: any;
 };
 
-const GPT_MODELS = [
-  'gpt-4o',
-  'gpt-4o-mini',
-  'o1-preview',
-  'o1-mini',
-  'gpt-4-turbo',
-  'gpt-3.5-turbo'
-];
+
 
 const DEFAULT_WEIGHTS = {
   sgOTT: 15, sgAPP: 25, sgARG: 10, sgPUTT: 15, eob: 0, bob: 10, pob: 0, ba: 0,
@@ -81,13 +74,13 @@ export default function Home() {
   // Phase 1 (Data Prep) States
   const [weights, setWeights] = useState<any>(DEFAULT_WEIGHTS);
   const [viewRounds, setViewRounds] = useState<'16'|'32'|'64'>('32');
-  const [gptModel, setGptModel] = useState('gpt-4o');
-  const [fileConfigs, setFileConfigs] = useState([
+    const [fileConfigs, setFileConfigs] = useState([
     { rounds: 16, weight: 33 },
     { rounds: 32, weight: 33 },
     { rounds: 64, weight: 34 }
   ]);
   const [isGptRunning, setIsGptRunning] = useState(false);
+  const [gptStatusText, setGptStatusText] = useState("");
   const [isGptLineupsOpen, setIsGptLineupsOpen] = useState(false);
   const [isGptLineupsRunning, setIsGptLineupsRunning] = useState(false);
   const [gptCompleted, setGptCompleted] = useState(false);
@@ -195,7 +188,7 @@ export default function Home() {
     try {
       const res = await fetch('/api/ai/course-fit', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournament: selectedTournament, userNotes: gptNotes + "\nIMPORTANT: Ensure exactly 100% total sum.", gptModel })
+        body: JSON.stringify({ tournament: selectedTournament, userNotes: gptNotes + "\nIMPORTANT: Ensure exactly 100% total sum.", model: 'gpt-5.6-sol' })
       });
       const data = await res.json();
       if (data.success && data.weights) {
@@ -366,6 +359,7 @@ export default function Home() {
     }
 
     setIsGptRunning(true);
+    setGptStatusText('Analyzing data with gpt-5.6-sol (High Reasoning)...');
     try {
       const gptPayload = players.map(p => {
         const payload: any = { 
@@ -395,7 +389,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: gptModel,
+          model: 'gpt-5.6-sol',
           configurations: fileConfigs,
           fieldData: gptPayload
         })
@@ -429,8 +423,10 @@ export default function Home() {
   };
 
   const generateGptLineups = async () => {
-    setIsGptLineupsRunning(true);
-    try {
+      setIsGptLineupsRunning(true);
+    setGptStatusText('Generating Lineups with gpt-5.6-sol (High Reasoning)...');
+      setGptStatusText("Generating Lineups with gpt-5.6-sol (High Reasoning)...");
+      try {
       const activePool = players.filter(p => !playerOverrides[p.id]?.exclude && p.salary > 0);
       const gptPayload = activePool.map(p => {
         const payload: any = { 
@@ -592,9 +588,7 @@ export default function Home() {
   if (!isClient) return <div style={{ background: '#0a0a0a', height: '100vh' }} />;
 
   const estTokens = players.length * 300;
-  const costMap: any = { 'gpt-5': 15.0, 'gpt-4o-mini': 0.15, 'gpt-4o': 5.0, 'gpt-4.5-preview': 10.0, 'gpt-4-turbo': 10.0, 'gpt-3.5-turbo': 0.5 };
-  const estCost = ((estTokens / 1000000) * (costMap[gptModel] || 1)).toFixed(3);
-
+  
   const updateActiveTab = (idx: number) => {
     setActiveTabIdx(idx);
     syncStateToServer({ activeTabIdx: idx });
@@ -682,11 +676,7 @@ export default function Home() {
               </div>
               <div style={{ padding: '20px', background: '#0a0a0a', borderTop: '1px solid #333' }}>
                 <h3 style={{ fontSize: '0.9rem', color: '#a855f7', marginBottom: '12px', marginTop: 0 }}>GPT Setup</h3>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                  <select value={gptModel} onChange={e => setGptModel(e.target.value)} style={{ flex: 1, background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '6px' }}>
-                    {GPT_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
+                
                 {fileConfigs.map((fc, idx) => (
                   <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                     <select value={fc.rounds} onChange={e => {
@@ -704,10 +694,20 @@ export default function Home() {
                 <div style={{ textAlign: 'right', fontSize: '0.75rem', color: fileConfigs.reduce((a,b)=>a+b.weight,0) === 100 ? '#22c55e' : '#ef4444', marginBottom: '12px' }}>
                   Total: {fileConfigs.reduce((a,b)=>a+b.weight,0)}%
                 </div>
-                <button onClick={sendToGPT} disabled={isGptRunning} style={{ width: '100%', background: '#a855f7', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span>{isGptRunning ? 'Processing...' : 'Send to GPT'}</span>
-                  {!isGptRunning && <span style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>Est. Cost: ${estCost}</span>}
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button onClick={sendToGPT} disabled={isGptRunning} style={{ width: '100%', background: '#a855f7', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      {isGptRunning ? 'Processing...' : 'Send to GPT'}
+                    </button>
+                    {isGptRunning && (
+                      <div style={{ width: '100%', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#a855f7', marginBottom: '4px', fontWeight: 'bold' }}>{gptStatusText}</div>
+                        <div style={{ width: '100%', background: '#222', height: '4px', borderRadius: '2px', overflow: 'hidden' }}>
+                          <div style={{ width: '100%', height: '100%', background: '#a855f7', animation: 'progress 2s ease-in-out infinite' }}></div>
+                        </div>
+                        <style>{`@keyframes progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }`}</style>
+                      </div>
+                    )}
+                  </div>
 
                   <button onClick={exportPage1ToCSV} style={{ width: '100%', marginTop: '8px', background: '#2563eb', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
                   Export Weighted Stats (CSV)
@@ -761,6 +761,14 @@ export default function Home() {
                                             <button onClick={generateGptLineups} disabled={isGptLineupsRunning} style={{ width: '100%', background: '#10b981', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>
                         {isGptLineupsRunning ? 'Generating...' : 'Generate'}
                       </button>
+                      {isGptLineupsRunning && (
+                        <div style={{ width: '100%', textAlign: 'center', marginTop: '4px' }}>
+                          <div style={{ fontSize: '0.75rem', color: '#10b981', marginBottom: '4px', fontWeight: 'bold' }}>{gptStatusText}</div>
+                          <div style={{ width: '100%', background: '#222', height: '4px', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{ width: '100%', height: '100%', background: '#10b981', animation: 'progress 2s ease-in-out infinite' }}></div>
+                          </div>
+                        </div>
+                      )}
                     </div>
               </div>
             </>

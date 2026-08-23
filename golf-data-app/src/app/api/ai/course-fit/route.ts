@@ -57,7 +57,8 @@ export async function POST(req: Request) {
     `;
 
     const response = await openai.chat.completions.create({
-      model: selectedModel,
+      model: 'gpt-5.6-sol',
+      reasoning_effort: 'high',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
     });
